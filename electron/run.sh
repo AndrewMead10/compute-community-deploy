@@ -29,7 +29,7 @@ source venv/bin/activate
 
 # Start the llama-cpp-python server in the background
 echo "Starting llama-cpp-python server with model: $MODEL_ID"
-python -m llama_cpp.server --model $MODEL_ID --host 127.0.0.1 --port 8000 &
+python -m llama_cpp.server --hf_model_repo_id $MODEL_ID --model '*Q4_0.gguf' --host 127.0.0.1 --port 8000 &
 LLAMA_PID=$!
 
 # Wait for the server to start

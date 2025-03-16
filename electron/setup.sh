@@ -36,7 +36,7 @@ fi
 
 # Install FastAPI and other dependencies
 echo "Installing FastAPI and other dependencies..."
-pip install fastapi uvicorn pydantic python-multipart
+pip install -r ../deploy/requirements.txt
 
 # Download the model if it's a Hugging Face model ID
 if [[ $MODEL_ID == *"/"* ]]; then
