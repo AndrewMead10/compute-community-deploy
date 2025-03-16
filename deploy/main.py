@@ -28,11 +28,13 @@ app.add_middleware(
 
 # Function to validate API key
 async def validate_api_key(authorization: str = Header(None, description="Authorization header with Bearer token")):
+    print(f"Authorization header: {authorization}")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header. Must be 'Bearer {api_key}'")
     
     api_key = authorization.replace("Bearer ", "")
     user = database.get_user_by_api_key(api_key)
+    print(user)
     
     if not user:
         raise HTTPException(status_code=401, detail="Invalid API key")
