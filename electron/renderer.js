@@ -16,9 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById(tabId).classList.add('active');
       
       // Load data for the active tab
-      if (tabId === 'users-tab') {
+      if (tabId === 'users') {
         loadUsers();
-      } else if (tabId === 'stats-tab') {
+      } else if (tabId === 'stats') {
         loadUsageStats();
       }
     });

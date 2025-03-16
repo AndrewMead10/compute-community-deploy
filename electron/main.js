@@ -20,7 +20,7 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
   
   // Open DevTools in development
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 }
 
 app.whenReady().then(() => {
