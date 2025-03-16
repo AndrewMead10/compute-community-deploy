@@ -1,10 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const Store = require('electron-store');
 const si = require('systeminformation');
-
-// Initialize store for saving settings
-const store = new Store();
 
 let mainWindow;
 
@@ -70,19 +66,4 @@ ipcMain.handle('benchmark-gpu', async () => {
       inferenceSpeed: Math.floor(Math.random() * 100) + 20 + " tokens/sec"
     }
   };
-});
-
-// Save peer settings
-ipcMain.on('save-peer-settings', (event, settings) => {
-  store.set('peerSettings', settings);
-});
-
-// Get peer settings
-ipcMain.handle('get-peer-settings', () => {
-  return store.get('peerSettings', {
-    username: '',
-    shareGpu: false,
-    maxGpuUsage: 80,
-    allowedPeers: []
-  });
 }); 
