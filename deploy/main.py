@@ -108,6 +108,9 @@ async def track_usage(request: Request, call_next):
 # Proxy route for all llama-cpp-python server endpoints
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_endpoint(request: Request, path: str, api_key: str = Depends(validate_api_key)):
+
+    print(f"All request headers: {dict(request.headers)}")
+
     # Get user from API key
     user = database.get_user_by_api_key(api_key)
     

@@ -36,9 +36,21 @@ else
 
     # Activate virtual environment (Git Bash / WSL)
     echo "Activating virtual environment..."
-    source venv/Scripts/activate
 
+
+    # Check the operating system
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        source "venv/bin/activate"
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    	# Windows (Git Bash or Cygwin)
+    	source "venv/Scripts/activate"
+    else
+        echo "Unsupported operating system: $OSTYPE"
+        exit 1
     fi
+
+    
 
     echo "Installing dependencies..."
     pip install --upgrade pip

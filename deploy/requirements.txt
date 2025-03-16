@@ -5,3 +5,4 @@ huggingface_hub
 setuptools 
 wheel
 cmake
+httpx
