@@ -27,7 +27,11 @@ app.add_middleware(
 )
 
 # Function to validate API key
-async def validate_api_key(api_key: str = Header(..., description="API Key for authentication")):
+async def validate_api_key(authorization: str = Header(None, description="Authorization header with Bearer token")):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header. Must be 'Bearer {api_key}'")
+    
+    api_key = authorization.replace("Bearer ", "")
     user = database.get_user_by_api_key(api_key)
     
     if not user:
@@ -42,13 +46,15 @@ async def track_usage(request: Request, call_next):
     if not request.url.path.startswith("/v1"):
         return await call_next(request)
     
-    # Get API key from header
-    api_key = request.headers.get("api-key")
-    if not api_key:
+    # Get API key from Authorization header
+    authorization = request.headers.get("Authorization")
+    if not authorization or not authorization.startswith("Bearer "):
         return JSONResponse(
             status_code=401,
-            content={"detail": "API key is required"}
+            content={"detail": "Invalid authorization header. Must be 'Bearer {api_key}'"}
         )
+    
+    api_key = authorization.replace("Bearer ", "")
     
     # Validate API key
     user = database.get_user_by_api_key(api_key)
@@ -113,10 +119,14 @@ async def proxy_endpoint(request: Request, path: str, api_key: str = Depends(val
     
     # Forward the request
     try:
+        # Create headers dictionary without host and Authorization (we don't want to forward the API key)
+        headers = {key: value for key, value in request.headers.items() 
+                  if key.lower() != "host" and key.lower() != "authorization"}
+        
         response = await client.request(
             method=request.method,
             url=f"/{path}",
-            headers={key: value for key, value in request.headers.items() if key.lower() != "host" and key.lower() != "api-key"},
+            headers=headers,
             content=body,
             params=request.query_params,
         )
