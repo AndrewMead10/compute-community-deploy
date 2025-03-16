@@ -96,6 +96,20 @@ body {
   font-size: 16px;
 }
 
+/* Input with button */
+.input-with-button {
+  display: flex;
+  gap: 10px;
+}
+
+.input-with-button .form-control {
+  flex: 1;
+}
+
+.input-with-button .btn {
+  white-space: nowrap;
+}
+
 .btn {
   padding: 10px 20px;
   border: none;
@@ -255,6 +269,64 @@ body {
   color: black;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* Model Selection Modal */
+#model-selection-modal .modal-content {
+  width: 70%;
+  max-width: 800px;
+  margin: 10% auto;
+}
+
+.model-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.models {
+  list-style: none;
+  padding: 0;
+}
+
+.model-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s;
+}
+
+.model-item:hover {
+  background-color: #f9f9f9;
+}
+
+.model-item:last-child {
+  border-bottom: none;
+}
+
+.model-info h3 {
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.model-info p {
+  color: #666;
+  font-size: 14px;
+}
+
+.select-model-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.select-model-btn:hover {
+  background-color: #45a049;
 }
 
 /* Stats Tab */

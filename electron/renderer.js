@@ -4,8 +4,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabButtons = document.querySelectorAll('.tab-button');
   const tabPanes = document.querySelectorAll('.tab-pane');
   
+  console.log('Tab buttons found:', tabButtons.length);
+  console.log('Tab panes found:', tabPanes.length);
+  
   tabButtons.forEach(button => {
+    console.log('Button data-tab:', button.getAttribute('data-tab'));
+    
     button.addEventListener('click', () => {
+      console.log('Tab button clicked:', button.getAttribute('data-tab'));
+      
       // Remove active class from all buttons and panes
       tabButtons.forEach(btn => btn.classList.remove('active'));
       tabPanes.forEach(pane => pane.classList.remove('active'));
@@ -13,12 +20,22 @@ document.addEventListener('DOMContentLoaded', () => {
       // Add active class to clicked button and corresponding pane
       button.classList.add('active');
       const tabId = button.getAttribute('data-tab');
-      document.getElementById(tabId).classList.add('active');
+      console.log('Looking for element with ID:', tabId);
+      
+      const tabElement = document.getElementById(tabId);
+      if (tabElement) {
+        console.log('Tab element found, adding active class');
+        tabElement.classList.add('active');
+      } else {
+        console.error('Tab element not found with ID:', tabId);
+      }
       
       // Load data for the active tab
       if (tabId === 'users') {
+        console.log('Loading users data');
         loadUsers();
       } else if (tabId === 'stats') {
+        console.log('Loading usage stats data');
         loadUsageStats();
       }
     });
@@ -33,6 +50,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // Setup run button
   const runButton = document.getElementById('run-button');
   runButton.addEventListener('click', runModel);
+  
+  // Setup fetch models button
+  const fetchModelsButton = document.getElementById('fetch-models-button');
+  fetchModelsButton.addEventListener('click', fetchModels);
+  
+  // Setup local model path input to disable model select when used
+  const localModelPathInput = document.getElementById('local-model-path');
+  localModelPathInput.addEventListener('input', () => {
+    const modelSelect = document.getElementById('model-select');
+    if (localModelPathInput.value.trim()) {
+      modelSelect.disabled = true;
+    } else {
+      modelSelect.disabled = !document.getElementById('repo-id').value.trim();
+    }
+  });
   
   // Setup API key modal
   const addApiKeyButton = document.getElementById('add-api-key');
@@ -69,6 +101,138 @@ document.addEventListener('DOMContentLoaded', () => {
     outputText.scrollTop = outputText.scrollHeight;
   });
 });
+
+// Fetch models from a Hugging Face repository
+async function fetchModels() {
+  const repoId = document.getElementById('repo-id').value.trim();
+  const outputText = document.getElementById('output-text');
+  const modelSelect = document.getElementById('model-select');
+  
+  if (!repoId) {
+    alert('Please enter a repository ID');
+    return;
+  }
+  
+  // Clear previous models
+  while (modelSelect.options.length > 0) {
+    modelSelect.remove(0);
+  }
+  
+  // Add placeholder option
+  const placeholderOption = document.createElement('option');
+  placeholderOption.value = '';
+  placeholderOption.textContent = 'Loading models...';
+  modelSelect.appendChild(placeholderOption);
+  
+  outputText.textContent = `Fetching models from ${repoId}...\n`;
+  
+  try {
+    const result = await window.api.fetchHfModels(repoId);
+    
+    // Clear the select
+    while (modelSelect.options.length > 0) {
+      modelSelect.remove(0);
+    }
+    
+    if (result.success && result.models && result.models.length > 0) {
+      // Add placeholder option
+      const selectOption = document.createElement('option');
+      selectOption.value = '';
+      selectOption.textContent = 'Select a model';
+      modelSelect.appendChild(selectOption);
+      
+      // Format file size
+      const formatFileSize = (bytes) => {
+        if (bytes < 1024 * 1024) {
+          return `${(bytes / 1024).toFixed(2)} KB`;
+        } else if (bytes < 1024 * 1024 * 1024) {
+          return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        } else {
+          return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        }
+      };
+      
+      // Add models to select
+      result.models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.name;
+        
+        const fileName = model.name.split('/').pop();
+        const fileSize = formatFileSize(model.size);
+        
+        option.textContent = `${fileName} (${fileSize})`;
+        modelSelect.appendChild(option);
+      });
+      
+      // Enable the select
+      modelSelect.disabled = false;
+      
+      outputText.textContent += `Found ${result.models.length} models in the repository.\n`;
+    } else {
+      // Add placeholder option
+      const noModelsOption = document.createElement('option');
+      noModelsOption.value = '';
+      noModelsOption.textContent = 'No GGUF models found';
+      modelSelect.appendChild(noModelsOption);
+      
+      outputText.textContent += `Error: ${result.error || 'No GGUF models found in the repository'}\n`;
+    }
+  } catch (error) {
+    console.error('Error fetching models:', error);
+    
+    // Add placeholder option
+    const errorOption = document.createElement('option');
+    errorOption.value = '';
+    errorOption.textContent = 'Error fetching models';
+    modelSelect.appendChild(errorOption);
+    
+    outputText.textContent += `Error fetching models: ${error.message}\n`;
+  }
+}
+
+// Run the model
+async function runModel() {
+  const backend = document.getElementById('backend').value;
+  const repoId = document.getElementById('repo-id').value.trim();
+  const modelSelect = document.getElementById('model-select');
+  const selectedModel = modelSelect.value;
+  const localModelPath = document.getElementById('local-model-path').value.trim();
+  
+  let modelId;
+  
+  // Determine which model ID to use
+  if (localModelPath) {
+    modelId = localModelPath;
+  } else if (repoId && selectedModel) {
+    modelId = `${repoId}:${selectedModel}`;
+  } else {
+    alert('Please either select a model from a repository or enter a local model path');
+    return;
+  }
+  
+  const outputText = document.getElementById('output-text');
+  outputText.textContent = `Starting setup with backend: ${backend}, model: ${modelId}...\n`;
+  
+  const runButton = document.getElementById('run-button');
+  runButton.disabled = true;
+  runButton.textContent = 'Running...';
+  
+  try {
+    const result = await window.api.runModel({ backend, modelId });
+    
+    if (result.success) {
+      outputText.textContent += '\nSetup completed successfully!\n';
+    } else {
+      outputText.textContent += `\nSetup failed: ${result.error}\n`;
+    }
+  } catch (error) {
+    console.error('Error running model:', error);
+    outputText.textContent += `\nError: ${error.message}\n`;
+  } finally {
+    runButton.disabled = false;
+    runButton.textContent = 'Run Model';
+  }
+}
 
 // Load system information
 async function loadSystemInfo() {
@@ -152,40 +316,6 @@ async function loadSystemInfo() {
     
     // Try again after 5 seconds if there was an error
     setTimeout(loadSystemInfo, 5000);
-  }
-}
-
-// Run the model
-async function runModel() {
-  const backend = document.getElementById('backend').value;
-  const modelId = document.getElementById('model-id').value;
-  
-  if (!modelId) {
-    alert('Please enter a model ID');
-    return;
-  }
-  
-  const outputText = document.getElementById('output-text');
-  outputText.textContent = `Starting setup with backend: ${backend}, model: ${modelId}...\n`;
-  
-  const runButton = document.getElementById('run-button');
-  runButton.disabled = true;
-  runButton.textContent = 'Running...';
-  
-  try {
-    const result = await window.api.runModel({ backend, modelId });
-    
-    if (result.success) {
-      outputText.textContent += '\nSetup completed successfully!\n';
-    } else {
-      outputText.textContent += `\nSetup failed: ${result.error}\n`;
-    }
-  } catch (error) {
-    console.error('Error running model:', error);
-    outputText.textContent += `\nError: ${error.message}\n`;
-  } finally {
-    runButton.disabled = false;
-    runButton.textContent = 'Run Model';
   }
 }
 

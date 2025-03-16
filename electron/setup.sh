@@ -38,12 +38,48 @@ fi
 echo "Installing FastAPI and other dependencies..."
 pip install -r ../deploy/requirements.txt
 
-# Download the model if it's a Hugging Face model ID
-if [[ $MODEL_ID == *"/"* ]]; then
+# Check if MODEL_ID contains a specific model file (repo:model format)
+if [[ $MODEL_ID == *":"* ]]; then
+  echo "Detected specific model file in repository"
+  REPO_ID=$(echo $MODEL_ID | cut -d':' -f1)
+  MODEL_FILE=$(echo $MODEL_ID | cut -d':' -f2)
+  
+  echo "Repository ID: $REPO_ID"
+  echo "Model file: $MODEL_FILE"
+  
+  # Create models directory if it doesn't exist
+  mkdir -p models
+  
+  # Download the specific model file
   echo "Downloading model from Hugging Face..."
-  pip install huggingface_hub
-  python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='$MODEL_ID', filename='ggml-model-q4_0.bin', local_dir='models')"
-  MODEL_ID="models/ggml-model-q4_0.bin"
+  python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='$REPO_ID', filename='$MODEL_FILE', local_dir='models')"
+  
+  # Set MODEL_ID to the local path
+  MODEL_ID="models/$(basename $MODEL_FILE)"
+  echo "Model downloaded to $MODEL_ID"
+# Download the model if it's a Hugging Face model ID (old format)
+elif [[ $MODEL_ID == *"/"* ]]; then
+  echo "Downloading model from Hugging Face..."
+  
+  # Create models directory if it doesn't exist
+  mkdir -p models
+  
+  # Try to find a GGUF file in the repository
+  echo "Looking for GGUF files in the repository..."
+  GGUF_FILES=$(python -c "from huggingface_hub import list_repo_files; files = list_repo_files('$MODEL_ID'); print('\n'.join([f for f in files if f.endswith('.gguf')]))")
+  
+  if [ -z "$GGUF_FILES" ]; then
+    echo "No GGUF files found in the repository. Trying to download ggml-model-q4_0.bin..."
+    python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='$MODEL_ID', filename='ggml-model-q4_0.bin', local_dir='models')"
+    MODEL_ID="models/ggml-model-q4_0.bin"
+  else
+    # Use the first GGUF file found
+    FIRST_GGUF=$(echo "$GGUF_FILES" | head -n 1)
+    echo "Found GGUF file: $FIRST_GGUF"
+    python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='$MODEL_ID', filename='$FIRST_GGUF', local_dir='models')"
+    MODEL_ID="models/$(basename $FIRST_GGUF)"
+  fi
+  
   echo "Model downloaded to $MODEL_ID"
 fi
 

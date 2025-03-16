@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld(
     getUsageStats: () => ipcRenderer.invoke('get-usage-stats'),
     addApiKey: (userData) => ipcRenderer.invoke('add-api-key', userData),
     deleteUser: (userId) => ipcRenderer.invoke('delete-user', userId),
+    fetchHfModels: (repoId) => ipcRenderer.invoke('fetch-hf-models', repoId),
     onSetupOutput: (callback) => {
       ipcRenderer.on('setup-output', (_, data) => callback(data));
     },

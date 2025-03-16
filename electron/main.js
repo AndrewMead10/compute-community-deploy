@@ -3,6 +3,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const si = require('systeminformation');
 const db = require('./database');
+const https = require('https');
 
 let mainWindow;
 
@@ -177,4 +178,74 @@ ipcMain.handle('get-usage-stats', async () => {
     console.error('Error getting usage stats:', error);
     return {};
   }
+});
+
+ipcMain.handle('fetch-hf-models', async (event, repoId) => {
+  return new Promise((resolve, reject) => {
+    if (!repoId || !repoId.includes('/')) {
+      resolve({ success: false, error: 'Invalid repository ID' });
+      return;
+    }
+
+    const options = {
+      hostname: 'huggingface.co',
+      path: `/api/models/${repoId}/tree/main`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Electron LLM Runner'
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          resolve({ 
+            success: false, 
+            error: `Failed to fetch models: HTTP ${res.statusCode}` 
+          });
+          return;
+        }
+
+        try {
+          const files = JSON.parse(data);
+          // Filter for GGUF files only
+          const ggufModels = files.filter(file => 
+            file.type === 'file' && 
+            file.path.toLowerCase().endsWith('.gguf')
+          ).map(file => ({
+            name: file.path,
+            size: file.size,
+            lastModified: file.lastCommit
+          }));
+
+          resolve({ 
+            success: true, 
+            models: ggufModels 
+          });
+        } catch (error) {
+          console.error('Error parsing HF API response:', error);
+          resolve({ 
+            success: false, 
+            error: `Failed to parse response: ${error.message}` 
+          });
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('Error fetching HF models:', error);
+      resolve({ 
+        success: false, 
+        error: `Network error: ${error.message}` 
+      });
+    });
+
+    req.end();
+  });
 }); 

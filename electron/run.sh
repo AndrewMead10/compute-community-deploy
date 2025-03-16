@@ -27,10 +27,32 @@ fi
 # Activate virtual environment
 source venv/bin/activate
 
-# Start the llama-cpp-python server in the background
-echo "Starting llama-cpp-python server with model: $MODEL_ID"
-python -m llama_cpp.server --hf_model_repo_id $MODEL_ID --model '*Q4_0.gguf' --host 127.0.0.1 --port 8000 &
-LLAMA_PID=$!
+# Check if MODEL_ID is a local file path or a Hugging Face model ID
+if [[ -f "$MODEL_ID" ]]; then
+  # Local file path
+  echo "Starting llama-cpp-python server with local model: $MODEL_ID"
+  python -m llama_cpp.server --model "$MODEL_ID" --host 127.0.0.1 --port 8000 &
+  LLAMA_PID=$!
+elif [[ $MODEL_ID == *":"* ]]; then
+  # Specific model file from a repository (repo:model format)
+  REPO_ID=$(echo $MODEL_ID | cut -d':' -f1)
+  MODEL_FILE=$(echo $MODEL_ID | cut -d':' -f2)
+  MODEL_PATH="models/$(basename $MODEL_FILE)"
+  
+  if [[ -f "$MODEL_PATH" ]]; then
+    echo "Starting llama-cpp-python server with downloaded model: $MODEL_PATH"
+    python -m llama_cpp.server --model "$MODEL_PATH" --host 127.0.0.1 --port 8000 &
+    LLAMA_PID=$!
+  else
+    echo "Model file not found: $MODEL_PATH"
+    exit 1
+  fi
+else
+  # Hugging Face model ID
+  echo "Starting llama-cpp-python server with Hugging Face model: $MODEL_ID"
+  python -m llama_cpp.server --hf_model_repo_id "$MODEL_ID" --model '*Q4_0.gguf' --host 127.0.0.1 --port 8000 &
+  LLAMA_PID=$!
+fi
 
 # Wait for the server to start
 echo "Waiting for llama-cpp-python server to start..."
