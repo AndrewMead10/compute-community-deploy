@@ -1,4 +1,4 @@
-#!/run/media/andrew/spinny_boi/coding/compute-community/deploy/test/.venv/bin/python
+#!/home/andrew/Documents/projects/compute-community-deploy/test/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
