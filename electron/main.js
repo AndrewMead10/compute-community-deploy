@@ -2,10 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const si = require('systeminformation');
-const Store = require('electron-store');
-
-// Initialize the store for saving user data
-const store = new Store();
+const db = require('./database');
 
 let mainWindow;
 
@@ -81,6 +78,8 @@ ipcMain.handle('get-system-info', async () => {
 
 ipcMain.handle('run-model', async (event, { backend, modelId }) => {
   return new Promise((resolve) => {
+    let serverProcess;
+    
     // Execute the setup.sh script with the backend and model ID as arguments
     const setupProcess = exec(`bash ${path.join(__dirname, 'setup.sh')} ${backend} ${modelId}`, 
       (error, stdout, stderr) => {
@@ -93,11 +92,36 @@ ipcMain.handle('run-model', async (event, { backend, modelId }) => {
         console.log(`Setup script output: ${stdout}`);
         if (stderr) console.error(`Setup script stderr: ${stderr}`);
         
-        resolve({ success: true, output: stdout });
+        // After setup is complete, start the server
+        mainWindow.webContents.send('setup-output', "Setup complete. Starting server...\n");
+        
+        // Start the run.sh script to run the server
+        serverProcess = exec(`bash ${path.join(__dirname, 'run.sh')} ${backend} ${modelId}`, 
+          (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error executing run script: ${error}`);
+              mainWindow.webContents.send('setup-error', `Error starting server: ${error.message}\n`);
+              resolve({ success: false, error: error.message });
+              return;
+            }
+          }
+        );
+        
+        // Stream server output to the renderer process
+        serverProcess.stdout.on('data', (data) => {
+          mainWindow.webContents.send('setup-output', data.toString());
+        });
+        
+        serverProcess.stderr.on('data', (data) => {
+          mainWindow.webContents.send('setup-error', data.toString());
+        });
+        
+        // Resolve after starting the server
+        resolve({ success: true, message: "Server started successfully" });
       }
     );
     
-    // Stream output to the renderer process
+    // Stream setup output to the renderer process
     setupProcess.stdout.on('data', (data) => {
       mainWindow.webContents.send('setup-output', data.toString());
     });
@@ -105,25 +129,52 @@ ipcMain.handle('run-model', async (event, { backend, modelId }) => {
     setupProcess.stderr.on('data', (data) => {
       mainWindow.webContents.send('setup-error', data.toString());
     });
+    
+    // Handle app quit to kill the server process
+    app.on('before-quit', () => {
+      if (serverProcess) {
+        serverProcess.kill();
+      }
+    });
   });
 });
 
 // User management functions
 ipcMain.handle('get-users', async () => {
-  // Placeholder for getting users from the store
-  return store.get('users', []);
+  try {
+    return await db.getUsers();
+  } catch (error) {
+    console.error('Error getting users:', error);
+    return [];
+  }
 });
 
 ipcMain.handle('add-api-key', async (event, { name, key }) => {
-  const users = store.get('users', []);
-  users.push({ name, key, createdAt: new Date().toISOString() });
-  store.set('users', users);
-  return users;
+  try {
+    await db.addUser(name, key);
+    return await db.getUsers();
+  } catch (error) {
+    console.error('Error adding API key:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle('delete-user', async (event, userId) => {
-  const users = store.get('users', []);
-  const updatedUsers = users.filter((user, index) => index !== userId);
-  store.set('users', updatedUsers);
-  return updatedUsers;
+  try {
+    await db.deleteUser(userId);
+    return await db.getUsers();
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    throw error;
+  }
+});
+
+// Usage statistics functions
+ipcMain.handle('get-usage-stats', async () => {
+  try {
+    return await db.getUsageStats();
+  } catch (error) {
+    console.error('Error getting usage stats:', error);
+    return {};
+  }
 }); 

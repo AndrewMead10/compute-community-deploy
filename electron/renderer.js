@@ -14,6 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
       button.classList.add('active');
       const tabId = button.getAttribute('data-tab');
       document.getElementById(tabId).classList.add('active');
+      
+      // Load data for the active tab
+      if (tabId === 'users-tab') {
+        loadUsers();
+      } else if (tabId === 'stats-tab') {
+        loadUsageStats();
+      }
     });
   });
   
@@ -194,15 +201,18 @@ async function loadUsers() {
     }
     
     let html = '';
-    users.forEach((user, index) => {
+    users.forEach((user) => {
+      const createdAt = new Date(user.created_at).toLocaleString();
       html += `
         <div class="user-card">
           <div class="user-info">
             <h3>${user.name}</h3>
-            <p>Created: ${new Date(user.createdAt).toLocaleString()}</p>
+            <p><strong>API Key:</strong> ${user.api_key}</p>
+            <p><strong>Created:</strong> ${createdAt}</p>
+            <p><strong>Admin:</strong> ${user.is_admin ? 'Yes' : 'No'}</p>
           </div>
           <div class="user-actions">
-            <button class="delete-user" data-id="${index}">Delete</button>
+            <button class="delete-user" data-id="${user.id}">Delete</button>
           </div>
         </div>
       `;
@@ -221,6 +231,57 @@ async function loadUsers() {
     console.error('Error loading users:', error);
     const usersListElement = document.getElementById('users-list');
     usersListElement.innerHTML = `<p class="error">Error loading users: ${error.message}</p>`;
+  }
+}
+
+// Load usage statistics
+async function loadUsageStats() {
+  try {
+    const stats = await window.api.getUsageStats();
+    const statsElement = document.getElementById('stats-container');
+    
+    if (Object.keys(stats).length === 0) {
+      statsElement.innerHTML = '<p>No usage statistics available.</p>';
+      return;
+    }
+    
+    let html = '<div class="stats-grid">';
+    
+    // Create a card for each user
+    for (const [userName, userStats] of Object.entries(stats)) {
+      const lastRequest = userStats.last_request ? new Date(userStats.last_request).toLocaleString() : 'Never';
+      
+      html += `
+        <div class="stats-card">
+          <h3>${userName}</h3>
+          <div class="stats-info">
+            <p><strong>Total Requests:</strong> ${userStats.total_requests}</p>
+            <p><strong>Total Tokens:</strong> ${userStats.total_tokens}</p>
+            <p><strong>Last Request:</strong> ${lastRequest}</p>
+          </div>
+          <div class="stats-endpoints">
+            <h4>Endpoints</h4>
+            <ul>
+      `;
+      
+      // Add endpoint usage
+      for (const [endpoint, count] of Object.entries(userStats.endpoints)) {
+        html += `<li><strong>${endpoint}:</strong> ${count} requests</li>`;
+      }
+      
+      html += `
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+    
+    html += '</div>';
+    statsElement.innerHTML = html;
+  } catch (error) {
+    console.error('Error loading usage statistics:', error);
+    const statsElement = document.getElementById('stats-container');
+    statsElement.innerHTML = `<p class="error">Error loading usage statistics: ${error.message}</p>`;
   }
 }
 

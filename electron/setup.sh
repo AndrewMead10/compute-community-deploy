@@ -1,35 +1,51 @@
 #!/bin/bash
 
-# This is a placeholder script that will be replaced with actual implementation
-# It receives the backend type and model ID as arguments
+# Script to set up the environment for llama-cpp-python
+# Arguments:
+# $1 - Backend (CPU, CUDA, etc.)
+# $2 - Model ID (path or HF model ID)
 
 BACKEND=$1
 MODEL_ID=$2
 
 echo "Setting up environment for $BACKEND with model $MODEL_ID"
-echo "Creating Python virtual environment..."
-echo "Installing dependencies..."
-echo "Downloading model from Hugging Face..."
-echo "Starting FastAPI server..."
 
-# Placeholder for actual implementation
-# In the real implementation, this script would:
-# 1. Create a Python virtual environment
-# 2. Install the required dependencies based on the backend
-# 3. Download the model from Hugging Face
-# 4. Start the FastAPI server
+# Create Python virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+  echo "Creating Python virtual environment..."
+  python -m venv venv
+fi
 
-# For now, just simulate some activity
-sleep 2
-echo "Environment setup complete!"
-sleep 1
-echo "Dependencies installed!"
-sleep 2
-echo "Model downloaded successfully!"
-sleep 1
-echo "Starting FastAPI server on http://localhost:8000"
+# Activate virtual environment
+source venv/bin/activate
 
-# In the real implementation, this would start the FastAPI server
-python main.py
+# Set environment variables based on backend for installation
+if [ "$BACKEND" == "CUDA" ]; then
+  echo "Installing llama-cpp-python with CUDA support..."
+  CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python --force-reinstall --upgrade
+elif [ "$BACKEND" == "METAL" ]; then
+  echo "Installing llama-cpp-python with Metal support..."
+  CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python --force-reinstall --upgrade
+elif [ "$BACKEND" == "OPENBLAS" ]; then
+  echo "Installing llama-cpp-python with OpenBLAS support..."
+  CMAKE_ARGS="-DLLAMA_OPENBLAS=on" pip install llama-cpp-python --force-reinstall --upgrade
+else
+  echo "Installing llama-cpp-python with CPU support..."
+  pip install llama-cpp-python --force-reinstall --upgrade
+fi
 
+# Install FastAPI and other dependencies
+echo "Installing FastAPI and other dependencies..."
+pip install fastapi uvicorn pydantic python-multipart
+
+# Download the model if it's a Hugging Face model ID
+if [[ $MODEL_ID == *"/"* ]]; then
+  echo "Downloading model from Hugging Face..."
+  pip install huggingface_hub
+  python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='$MODEL_ID', filename='ggml-model-q4_0.bin', local_dir='models')"
+  MODEL_ID="models/ggml-model-q4_0.bin"
+  echo "Model downloaded to $MODEL_ID"
+fi
+
+echo "Setup complete!"
 exit 0 

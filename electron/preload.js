@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld(
     getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
     runModel: (options) => ipcRenderer.invoke('run-model', options),
     getUsers: () => ipcRenderer.invoke('get-users'),
+    getUsageStats: () => ipcRenderer.invoke('get-usage-stats'),
     addApiKey: (userData) => ipcRenderer.invoke('add-api-key', userData),
     deleteUser: (userId) => ipcRenderer.invoke('delete-user', userId),
     onSetupOutput: (callback) => {

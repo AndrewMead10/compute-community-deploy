@@ -11,6 +11,7 @@
     <div class="tabs">
       <button class="tab-button active" data-tab="setup">Setup</button>
       <button class="tab-button" data-tab="users">Users</button>
+      <button class="tab-button" data-tab="stats">Usage Stats</button>
     </div>
     
     <div class="tab-content">
@@ -22,14 +23,16 @@
           <div class="form-group">
             <label for="backend">Backend:</label>
             <select id="backend" class="form-control">
-              <option value="llama.cpp">llama.cpp</option>
-              <option value="sgalng">sgalng</option>
+              <option value="CPU">CPU</option>
+              <option value="CUDA">CUDA (NVIDIA GPU)</option>
+              <option value="METAL">Metal (Apple Silicon/AMD GPU)</option>
+              <option value="OPENBLAS">OpenBLAS</option>
             </select>
           </div>
           
           <div class="form-group">
-            <label for="model-id">Model ID (Hugging Face):</label>
-            <input type="text" id="model-id" class="form-control" placeholder="e.g., TheBloke/Llama-2-7B-GGUF">
+            <label for="model-id">Model ID (Hugging Face or local path):</label>
+            <input type="text" id="model-id" class="form-control" placeholder="e.g., TheBloke/Llama-2-7B-GGUF or /path/to/model.gguf">
           </div>
           
           <button id="run-button" class="btn btn-primary">Run Model</button>
@@ -73,6 +76,17 @@
             </div>
             <button id="save-api-key" class="btn btn-primary">Save</button>
           </div>
+        </div>
+      </div>
+      
+      <!-- Usage Stats Tab -->
+      <div id="stats" class="tab-pane">
+        <div class="stats-header">
+          <h1>Usage Statistics</h1>
+        </div>
+        
+        <div id="stats-container" class="stats-container">
+          <p>Loading usage statistics...</p>
         </div>
       </div>
     </div>
