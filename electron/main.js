@@ -41,8 +41,9 @@ app.on('window-all-closed', function () {
 // IPC handlers for communication with renderer process
 ipcMain.handle('get-system-info', async () => {
   try {
-    const [cpu, gpu, mem, os] = await Promise.all([
+    const [cpu, cpuLoad, gpu, mem, os] = await Promise.all([
       si.cpu(),
+      si.currentLoad(),
       si.graphics(),
       si.mem(),
       si.osInfo()
@@ -52,15 +53,18 @@ ipcMain.handle('get-system-info', async () => {
       cpu: {
         model: cpu.manufacturer + ' ' + cpu.brand,
         cores: cpu.cores,
-        speed: cpu.speed
+        speed: cpu.speed,
+        usage: Math.round(cpuLoad.currentLoad)
       },
       gpu: gpu.controllers.map(controller => ({
         model: controller.model,
-        vram: controller.vram
+        vram: controller.vram,
+        memoryUsage: controller.memoryUsed ? Math.round((controller.memoryUsed / controller.vram) * 100) : null
       })),
       memory: {
         total: Math.round(mem.total / (1024 * 1024 * 1024)), // Convert to GB
-        free: Math.round(mem.free / (1024 * 1024 * 1024))
+        free: Math.round(mem.free / (1024 * 1024 * 1024)),
+        used: Math.round((mem.total - mem.free) / (1024 * 1024 * 1024))
       },
       os: {
         platform: os.platform,

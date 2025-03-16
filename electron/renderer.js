@@ -74,52 +74,77 @@ async function loadSystemInfo() {
       return;
     }
     
+    // Get CPU usage
+    const cpuUsage = systemInfo.cpu.usage || 0;
+    
+    // Calculate memory usage percentage
+    const memoryTotal = systemInfo.memory.total;
+    const memoryUsed = systemInfo.memory.used;
+    const memoryUsagePercent = Math.round((memoryUsed / memoryTotal) * 100);
+    
+    // Start building HTML
     let html = `
       <div class="info-section">
         <h3>CPU</h3>
         <p><strong>Model:</strong> ${systemInfo.cpu.model}</p>
         <p><strong>Cores:</strong> ${systemInfo.cpu.cores}</p>
         <p><strong>Speed:</strong> ${systemInfo.cpu.speed} GHz</p>
-      </div>
-      
-      <div class="info-section">
-        <h3>GPU</h3>
-    `;
-    
-    if (systemInfo.gpu.length === 0) {
-      html += `<p>No GPU detected</p>`;
-    } else {
-      systemInfo.gpu.forEach(gpu => {
-        html += `
-          <p><strong>Model:</strong> ${gpu.model || 'Unknown'}</p>
-          <p><strong>VRAM:</strong> ${gpu.vram ? gpu.vram + ' MB' : 'Unknown'}</p>
-        `;
-      });
-    }
-    
-    html += `
+        <div class="usage-bar-container">
+          <div class="usage-bar" style="width: ${cpuUsage}%"></div>
+          <span class="usage-text">${cpuUsage}% Usage</span>
+        </div>
       </div>
       
       <div class="info-section">
         <h3>Memory</h3>
-        <p><strong>Total:</strong> ${systemInfo.memory.total} GB</p>
-        <p><strong>Free:</strong> ${systemInfo.memory.free} GB</p>
-      </div>
-      
-      <div class="info-section">
-        <h3>Operating System</h3>
-        <p><strong>Platform:</strong> ${systemInfo.os.platform}</p>
-        <p><strong>Distribution:</strong> ${systemInfo.os.distro}</p>
-        <p><strong>Release:</strong> ${systemInfo.os.release}</p>
-        <p><strong>Architecture:</strong> ${systemInfo.os.arch}</p>
+        <p><strong>Total:</strong> ${memoryTotal} GB</p>
+        <p><strong>Used:</strong> ${memoryUsed} GB</p>
+        <div class="usage-bar-container">
+          <div class="usage-bar" style="width: ${memoryUsagePercent}%"></div>
+          <span class="usage-text">${memoryUsagePercent}% Usage</span>
+        </div>
       </div>
     `;
     
+    // Only show GPU section if NVIDIA GPU is detected
+    const hasNvidiaGpu = systemInfo.gpu.some(gpu => 
+      gpu.model && gpu.model.toLowerCase().includes('nvidia')
+    );
+    
+    if (hasNvidiaGpu) {
+      html += `<div class="info-section"><h3>GPU</h3>`;
+      
+      systemInfo.gpu.forEach(gpu => {
+        if (gpu.model && gpu.model.toLowerCase().includes('nvidia')) {
+          const vramText = gpu.vram ? `${gpu.vram} MB` : 'Unknown';
+          // Use real GPU memory usage if available, otherwise use 0
+          const gpuMemUsagePercent = gpu.memoryUsage !== null ? gpu.memoryUsage : 0;
+          
+          html += `
+            <p><strong>Model:</strong> ${gpu.model || 'Unknown'}</p>
+            <p><strong>VRAM:</strong> ${vramText}</p>
+            <div class="usage-bar-container">
+              <div class="usage-bar" style="width: ${gpuMemUsagePercent}%"></div>
+              <span class="usage-text">${gpuMemUsagePercent}% Memory Usage</span>
+            </div>
+          `;
+        }
+      });
+      
+      html += `</div>`;
+    }
+    
     systemInfoElement.innerHTML = html;
+    
+    // Update system info every 2 seconds
+    setTimeout(loadSystemInfo, 2000);
   } catch (error) {
     console.error('Error loading system info:', error);
     const systemInfoElement = document.getElementById('system-info');
     systemInfoElement.innerHTML = `<p class="error">Error loading system information: ${error.message}</p>`;
+    
+    // Try again after 5 seconds if there was an error
+    setTimeout(loadSystemInfo, 5000);
   }
 }
 

@@ -30,6 +30,6 @@ sleep 1
 echo "Starting FastAPI server on http://localhost:8000"
 
 # In the real implementation, this would start the FastAPI server
-# python main.py
+python main.py
 
 exit 0 
