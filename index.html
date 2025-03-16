@@ -10,191 +10,69 @@
     <header>
       <h1>Decentralized LLM GPU Sharing</h1>
       <div class="tabs">
-        <button class="tab-btn active" data-tab="my-hardware">My Hardware</button>
-        <button class="tab-btn" data-tab="network">Network</button>
-        <button class="tab-btn" data-tab="settings">Settings</button>
-        <button class="tab-btn" data-tab="llm-tasks">LLM Tasks</button>
+        <button class="tab-btn active" data-tab="setup">Setup</button>
       </div>
     </header>
 
     <main>
-      <!-- My Hardware Tab -->
-      <section id="my-hardware" class="tab-content active">
-        <h2>My System Hardware</h2>
+      <!-- Setup Tab -->
+      <section id="setup" class="tab-content active">
+        <h2>Setup</h2>
         
-        <div class="hardware-card">
-          <h3>GPU Information</h3>
+        <div class="setup-card">
+          <h3>Model Selection</h3>
+          <form id="model-form">
+            <div class="form-group">
+              <label>Model Type:</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="model-type" value="llama" checked>
+                  Llama
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="model-type" value="dglang">
+                  DGLang
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="model-id">Model ID:</label>
+              <input type="text" id="model-id" name="model-id" placeholder="Enter model ID">
+            </div>
+            
+            <button type="submit" id="run-btn" class="primary-btn">Run</button>
+          </form>
+        </div>
+        
+        <div class="resource-card">
+          <h3>CPU</h3>
+          <div id="cpu-info" class="info-container">Loading...</div>
+          <div class="resource-chart-container">
+            <canvas id="cpu-usage-chart"></canvas>
+          </div>
+        </div>
+        
+        <div class="resource-card">
+          <h3>RAM</h3>
+          <div id="ram-info" class="info-container">Loading...</div>
+          <div class="resource-chart-container">
+            <canvas id="ram-usage-chart"></canvas>
+          </div>
+        </div>
+        
+        <div class="resource-card">
+          <h3>GPU</h3>
           <div id="gpu-info" class="info-container">Loading...</div>
+          <div class="resource-chart-container">
+            <canvas id="gpu-usage-chart"></canvas>
+          </div>
           <div class="actions">
             <button id="benchmark-gpu">Benchmark GPU</button>
             <div id="benchmark-result" class="hidden">
               <h4>Benchmark Score: <span id="benchmark-score">0</span></h4>
               <div id="benchmark-details"></div>
             </div>
-          </div>
-        </div>
-        
-        <div class="hardware-card">
-          <h3>CPU Information</h3>
-          <div id="cpu-info" class="info-container">Loading...</div>
-        </div>
-        
-        <div class="hardware-card">
-          <h3>RAM Information</h3>
-          <div id="ram-info" class="info-container">Loading...</div>
-        </div>
-
-        <div class="hardware-card">
-          <h3>GPU Usage</h3>
-          <canvas id="gpu-usage-chart"></canvas>
-        </div>
-      </section>
-
-      <!-- Network Tab -->
-      <section id="network" class="tab-content">
-        <h2>GPU Sharing Network</h2>
-        
-        <div class="network-status">
-          <div class="status-indicator" id="network-status-indicator"></div>
-          <span id="network-status-text">Disconnected</span>
-          <button id="connect-btn">Connect</button>
-        </div>
-        
-        <div class="peers-container">
-          <h3>Available Peers</h3>
-          <div id="peers-list" class="peers-list">
-            <p class="empty-message">No peers connected. Invite friends to join!</p>
-          </div>
-        </div>
-        
-        <div class="network-stats">
-          <h3>Network Statistics</h3>
-          <canvas id="network-chart"></canvas>
-        </div>
-
-        <div class="invite-section">
-          <h3>Invite Friends</h3>
-          <div class="invite-code-container">
-            <p>Share this code with friends to connect:</p>
-            <div class="invite-code">
-              <span id="invite-code">XXXX-XXXX-XXXX</span>
-              <button id="copy-invite-code">Copy</button>
-              <button id="generate-new-code">Generate New</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Settings Tab -->
-      <section id="settings" class="tab-content">
-        <h2>Settings</h2>
-        
-        <form id="settings-form">
-          <div class="form-group">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" placeholder="Your display name">
-          </div>
-          
-          <div class="form-group">
-            <label for="share-gpu">Share my GPU:</label>
-            <label class="switch">
-              <input type="checkbox" id="share-gpu" name="shareGpu">
-              <span class="slider round"></span>
-            </label>
-          </div>
-          
-          <div class="form-group" id="gpu-settings">
-            <label for="max-gpu-usage">Maximum GPU usage to share:</label>
-            <div class="slider-container">
-              <input type="range" id="max-gpu-usage" name="maxGpuUsage" min="10" max="90" value="80">
-              <span id="max-gpu-value">80%</span>
-            </div>
-            <p class="help-text">This limits how much of your GPU can be used by others.</p>
-          </div>
-          
-          <div class="form-group">
-            <label>Allowed Peers:</label>
-            <div id="allowed-peers">
-              <p class="empty-message">No peers added yet.</p>
-            </div>
-            <button type="button" id="add-peer-btn">Add Peer</button>
-          </div>
-          
-          <div class="form-group">
-            <label for="api-endpoint">API Endpoint (for future use):</label>
-            <input type="text" id="api-endpoint" name="apiEndpoint" placeholder="http://localhost:8000" value="http://localhost:8000">
-            <p class="help-text">This will be used to connect to your FastAPI backend in the future.</p>
-          </div>
-          
-          <button type="submit" class="primary-btn">Save Settings</button>
-        </form>
-      </section>
-
-      <!-- LLM Tasks Tab -->
-      <section id="llm-tasks" class="tab-content">
-        <h2>LLM Tasks</h2>
-        
-        <div class="task-creator">
-          <h3>Create New Task</h3>
-          <form id="task-form">
-            <div class="form-group">
-              <label for="model-select">Select Model:</label>
-              <select id="model-select" name="model">
-                <option value="llama2-7b">Llama 2 (7B)</option>
-                <option value="llama2-13b">Llama 2 (13B)</option>
-                <option value="mistral-7b">Mistral (7B)</option>
-                <option value="mixtral-8x7b">Mixtral (8x7B)</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="task-type">Task Type:</label>
-              <select id="task-type" name="taskType">
-                <option value="inference">Inference</option>
-                <option value="finetune">Fine-tuning</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="gpu-preference">GPU Preference:</label>
-              <select id="gpu-preference" name="gpuPreference">
-                <option value="local">Local GPU</option>
-                <option value="remote">Remote GPU</option>
-                <option value="auto">Auto (Best Available)</option>
-              </select>
-            </div>
-
-            <div class="form-group" id="inference-options">
-              <label for="prompt">Prompt:</label>
-              <textarea id="prompt" name="prompt" rows="4" placeholder="Enter your prompt here..."></textarea>
-            </div>
-            
-            <div class="form-group hidden" id="finetune-options">
-              <label for="dataset">Dataset:</label>
-              <select id="dataset" name="dataset">
-                <option value="custom">Custom Upload</option>
-                <option value="alpaca">Alpaca</option>
-                <option value="dolly">Dolly</option>
-              </select>
-              <div id="dataset-upload" class="mt-10">
-                <label for="dataset-file" class="file-upload-label">Upload Dataset</label>
-                <input type="file" id="dataset-file" name="datasetFile" class="file-upload">
-              </div>
-            </div>
-            
-            <button type="submit" class="primary-btn">Start Task</button>
-          </form>
-        </div>
-        
-        <div class="tasks-list">
-          <h3>Active Tasks</h3>
-          <div id="active-tasks">
-            <p class="empty-message">No active tasks.</p>
-          </div>
-          
-          <h3>Completed Tasks</h3>
-          <div id="completed-tasks">
-            <p class="empty-message">No completed tasks.</p>
           </div>
         </div>
       </section>

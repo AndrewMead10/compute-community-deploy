@@ -8,7 +8,10 @@ let connectedPeers = [];
 let activeTasks = [];
 let completedTasks = [];
 let isConnected = false;
+let isServiceOnline = false;
 let networkChart;
+let cpuUsageChart;
+let ramUsageChart;
 let gpuUsageChart;
 
 // DOM Elements
@@ -41,6 +44,12 @@ const generateNewCodeButton = document.getElementById('generate-new-code');
 const taskTypeSelect = document.getElementById('task-type');
 const inferenceOptions = document.getElementById('inference-options');
 const finetuneOptions = document.getElementById('finetune-options');
+const modelForm = document.getElementById('model-form');
+const modelTypeRadios = document.querySelectorAll('input[name="model-type"]');
+const modelIdInput = document.getElementById('model-id');
+const apiEndpointInput = document.getElementById('api-endpoint');
+const serviceStatusElement = document.getElementById('service-status');
+const runButton = document.getElementById('run-btn');
 
 // DUMMY DATA SECTION
 // ------------------
@@ -53,12 +62,14 @@ const dummyHardwareData = {
     speed: 3.7,
     cores: 12,
     physicalCores: 12,
-    processors: 1
+    processors: 1,
+    usage: 25
   },
   mem: {
     total: 34359738368, // 32GB
     free: 17179869184,  // 16GB
-    used: 17179869184   // 16GB
+    used: 17179869184,  // 16GB
+    usage: 50
   },
   graphics: {
     controllers: [
@@ -68,7 +79,8 @@ const dummyHardwareData = {
         vram: 10240,
         driverVersion: '531.41',
         subDeviceId: '123456',
-        temperature: 65
+        temperature: 65,
+        usage: 35
       }
     ],
     displays: [
@@ -247,23 +259,11 @@ function initApp() {
   // Load hardware info
   loadHardwareInfo();
   
-  // Set up GPU usage chart
-  setupGpuUsageChart();
-  
-  // Set up network chart
-  setupNetworkChart();
+  // Set up resource usage charts
+  setupResourceCharts();
   
   // Set up event listeners
   setupEventListeners();
-  
-  // Load settings
-  loadSettings();
-  
-  // Load tasks
-  loadTasks();
-  
-  // Generate invite code
-  inviteCodeElement.textContent = generateRandomInviteCode();
 }
 
 // Load hardware info (using dummy data for now)
@@ -284,8 +284,9 @@ function displayHardwareInfo(data) {
       <p><strong>Model:</strong> ${gpu.model || 'Unknown'}</p>
       <p><strong>Vendor:</strong> ${gpu.vendor || 'Unknown'}</p>
       <p><strong>VRAM:</strong> ${gpu.vram ? (gpu.vram / 1024).toFixed(2) + ' GB' : 'Unknown'}</p>
-      <p><strong>Driver Version:</strong> ${gpu.driverVersion || 'Unknown'}</p>
+      <p><strong>Usage:</strong> ${gpu.usage || 0}%</p>
       ${gpu.temperature ? `<p><strong>Temperature:</strong> ${gpu.temperature}°C</p>` : ''}
+      <p><strong>Driver:</strong> ${gpu.driverVersion || 'Unknown'}</p>
     `;
   } else {
     gpuInfoElement.innerHTML = '<p>No GPU detected</p>';
@@ -294,10 +295,12 @@ function displayHardwareInfo(data) {
   // Display CPU info
   if (data.cpu) {
     cpuInfoElement.innerHTML = `
-      <p><strong>Manufacturer:</strong> ${data.cpu.manufacturer || 'Unknown'}</p>
       <p><strong>Model:</strong> ${data.cpu.brand || 'Unknown'}</p>
+      <p><strong>Manufacturer:</strong> ${data.cpu.manufacturer || 'Unknown'}</p>
       <p><strong>Speed:</strong> ${data.cpu.speed ? data.cpu.speed + ' GHz' : 'Unknown'}</p>
-      <p><strong>Cores:</strong> ${data.cpu.cores || 'Unknown'} (Physical: ${data.cpu.physicalCores || 'Unknown'})</p>
+      <p><strong>Cores:</strong> ${data.cpu.cores || 'Unknown'}</p>
+      <p><strong>Physical Cores:</strong> ${data.cpu.physicalCores || 'Unknown'}</p>
+      <p><strong>Usage:</strong> ${data.cpu.usage || 0}%</p>
     `;
   } else {
     cpuInfoElement.innerHTML = '<p>No CPU information available</p>';
@@ -307,20 +310,30 @@ function displayHardwareInfo(data) {
   if (data.mem) {
     ramInfoElement.innerHTML = `
       <p><strong>Total Memory:</strong> ${formatMemorySize(data.mem.total)}</p>
-      <p><strong>Used Memory:</strong> ${formatMemorySize(data.mem.used)} (${Math.round(data.mem.used / data.mem.total * 100)}%)</p>
+      <p><strong>Used Memory:</strong> ${formatMemorySize(data.mem.used)}</p>
       <p><strong>Free Memory:</strong> ${formatMemorySize(data.mem.free)}</p>
+      <p><strong>Usage:</strong> ${Math.round(data.mem.used / data.mem.total * 100)}%</p>
     `;
   } else {
     ramInfoElement.innerHTML = '<p>No memory information available</p>';
   }
 }
 
-// Set up GPU usage chart
-function setupGpuUsageChart() {
-  const ctx = document.getElementById('gpu-usage-chart').getContext('2d');
-  gpuUsageChart = new Chart(ctx, {
-    type: 'line',
-    data: dummyGpuUsageData,
+// Set up resource usage charts
+function setupResourceCharts() {
+  // CPU usage chart
+  const cpuCtx = document.getElementById('cpu-usage-chart').getContext('2d');
+  cpuUsageChart = new Chart(cpuCtx, {
+    type: 'bar',
+    data: {
+      labels: ['CPU Usage'],
+      datasets: [{
+        label: 'Usage %',
+        data: [dummyHardwareData.cpu.usage],
+        backgroundColor: 'rgba(74, 108, 247, 0.7)',
+        borderWidth: 1
+      }]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -332,11 +345,63 @@ function setupGpuUsageChart() {
             display: true,
             text: 'Usage %'
           }
-        },
-        x: {
+        }
+      }
+    }
+  });
+  
+  // RAM usage chart
+  const ramCtx = document.getElementById('ram-usage-chart').getContext('2d');
+  ramUsageChart = new Chart(ramCtx, {
+    type: 'bar',
+    data: {
+      labels: ['RAM Usage'],
+      datasets: [{
+        label: 'Usage %',
+        data: [Math.round(dummyHardwareData.mem.used / dummyHardwareData.mem.total * 100)],
+        backgroundColor: 'rgba(40, 167, 69, 0.7)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
           title: {
             display: true,
-            text: 'Time (s)'
+            text: 'Usage %'
+          }
+        }
+      }
+    }
+  });
+  
+  // GPU usage chart
+  const gpuCtx = document.getElementById('gpu-usage-chart').getContext('2d');
+  gpuUsageChart = new Chart(gpuCtx, {
+    type: 'bar',
+    data: {
+      labels: ['GPU Usage'],
+      datasets: [{
+        label: 'Usage %',
+        data: [dummyHardwareData.graphics.controllers[0].usage],
+        backgroundColor: 'rgba(220, 53, 69, 0.7)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
+          title: {
+            display: true,
+            text: 'Usage %'
           }
         }
       }
@@ -345,33 +410,31 @@ function setupGpuUsageChart() {
   
   // Simulate real-time updates
   setInterval(() => {
-    const data = gpuUsageChart.data.datasets[0].data;
-    data.shift();
-    data.push(Math.floor(Math.random() * 40) + 30);
+    // Update CPU usage
+    const cpuUsage = Math.floor(Math.random() * 40) + 20;
+    cpuUsageChart.data.datasets[0].data = [cpuUsage];
+    cpuUsageChart.update();
+    
+    // Update RAM usage
+    const ramUsage = Math.floor(Math.random() * 30) + 40;
+    ramUsageChart.data.datasets[0].data = [ramUsage];
+    ramUsageChart.update();
+    
+    // Update GPU usage
+    const gpuUsage = Math.floor(Math.random() * 50) + 20;
+    gpuUsageChart.data.datasets[0].data = [gpuUsage];
     gpuUsageChart.update();
+    
+    // Update info containers
+    const cpuInfo = document.querySelector('#cpu-info p:last-child');
+    if (cpuInfo) cpuInfo.innerHTML = `<strong>Usage:</strong> ${cpuUsage}%`;
+    
+    const ramInfo = document.querySelector('#ram-info p:last-child');
+    if (ramInfo) ramInfo.innerHTML = `<strong>Usage:</strong> ${ramUsage}%`;
+    
+    const gpuInfo = document.querySelector('#gpu-info p:nth-child(4)');
+    if (gpuInfo) gpuInfo.innerHTML = `<strong>Usage:</strong> ${gpuUsage}%`;
   }, 2000);
-}
-
-// Set up network chart
-function setupNetworkChart() {
-  const ctx = document.getElementById('network-chart').getContext('2d');
-  networkChart = new Chart(ctx, {
-    type: 'bar',
-    data: dummyNetworkData,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'GPU Score'
-          }
-        }
-      }
-    }
-  });
 }
 
 // Set up event listeners
@@ -534,6 +597,42 @@ function setupEventListeners() {
   // Generate new invite code button
   generateNewCodeButton.addEventListener('click', () => {
     inviteCodeElement.textContent = generateRandomInviteCode();
+  });
+  
+  // Model form
+  modelForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    // Get selected model type
+    let modelType;
+    modelTypeRadios.forEach(radio => {
+      if (radio.checked) {
+        modelType = radio.value;
+      }
+    });
+    
+    const modelId = modelIdInput.value;
+    
+    if (!modelId) {
+      alert('Please enter a Model ID');
+      return;
+    }
+    
+    // In a real app, we would send this to the backend
+    console.log('Running model:', {
+      type: modelType,
+      id: modelId
+    });
+    
+    runButton.disabled = true;
+    runButton.textContent = 'Running...';
+    
+    // Simulate running the model
+    setTimeout(() => {
+      alert(`Started ${modelType} model with ID: ${modelId}`);
+      runButton.disabled = false;
+      runButton.textContent = 'Run';
+    }, 2000);
   });
 }
 
