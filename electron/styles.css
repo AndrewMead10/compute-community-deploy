@@ -50,18 +50,22 @@ body {
 }
 
 .tab-pane {
-  display: none;
+  display: none !important;
   height: 100%;
   overflow: auto;
 }
 
 .tab-pane.active {
-  display: flex;
+  display: flex !important;
 }
 
 /* Setup Tab */
 #setup {
   display: flex;
+}
+
+#setup.active {
+  display: flex !important;
 }
 
 .main-content {
@@ -191,6 +195,12 @@ body {
 
 /* Users Tab (Combined with Stats) */
 #users {
+  flex-direction: column;
+  padding: 20px;
+}
+
+#users.active {
+  display: flex !important;
   flex-direction: column;
   padding: 20px;
 }
@@ -468,4 +478,10 @@ body {
 .stats-endpoints li {
   margin-bottom: 3px;
   font-size: 14px;
+}
+
+.tab-content #users.tab-pane.active {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 20px !important;
 } 

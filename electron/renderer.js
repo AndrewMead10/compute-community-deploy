@@ -7,6 +7,15 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('Tab buttons found:', tabButtons.length);
   console.log('Tab panes found:', tabPanes.length);
   
+  // Set initial tab state
+  tabPanes.forEach(pane => {
+    if (pane.classList.contains('active')) {
+      pane.style.display = pane.id === 'setup' ? 'flex' : 'none';
+    } else {
+      pane.style.display = 'none';
+    }
+  });
+  
   tabButtons.forEach(button => {
     console.log('Button data-tab:', button.getAttribute('data-tab'));
     
@@ -15,7 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Remove active class from all buttons and panes
       tabButtons.forEach(btn => btn.classList.remove('active'));
-      tabPanes.forEach(pane => pane.classList.remove('active'));
+      tabPanes.forEach(pane => {
+        pane.classList.remove('active');
+        pane.style.display = 'none';
+      });
       
       // Add active class to clicked button and corresponding pane
       button.classList.add('active');
@@ -26,6 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tabElement) {
         console.log('Tab element found, adding active class');
         tabElement.classList.add('active');
+        
+        // Explicitly set display style based on the tab
+        if (tabId === 'setup') {
+          tabElement.style.display = 'flex';
+        } else if (tabId === 'users') {
+          tabElement.style.display = 'flex';
+          tabElement.style.flexDirection = 'column';
+        }
+        
+        // Debug: Check if the tab is visible after adding the active class
+        setTimeout(() => {
+          const computedStyle = window.getComputedStyle(tabElement);
+          console.log(`Tab ${tabId} display style:`, computedStyle.display);
+          console.log(`Tab ${tabId} visibility:`, computedStyle.visibility);
+          console.log(`Tab ${tabId} opacity:`, computedStyle.opacity);
+          console.log(`Tab ${tabId} has active class:`, tabElement.classList.contains('active'));
+        }, 100);
       } else {
         console.error('Tab element not found with ID:', tabId);
       }
