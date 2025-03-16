@@ -1,6 +1,0 @@
-fastapi
-setuptools 
-wheel
-cmake
-llama-cpp-python
-

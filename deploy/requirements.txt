@@ -2,3 +2,6 @@ llama-cpp-python[server]
 fastapi
 uvicorn
 huggingface_hub
+setuptools 
+wheel
+cmake

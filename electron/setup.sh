@@ -10,33 +10,42 @@ MODEL_ID=$2
 
 echo "Setting up environment for $BACKEND with model $MODEL_ID"
 
-# Create Python virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-  echo "Creating Python virtual environment..."
-  python -m venv venv
-fi
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
 
-# Activate virtual environment
-source venv/bin/activate
-
-# Set environment variables based on backend for installation
-if [ "$BACKEND" == "CUDA" ]; then
-  echo "Installing llama-cpp-python with CUDA support..."
-  CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python --force-reinstall --upgrade
-elif [ "$BACKEND" == "METAL" ]; then
-  echo "Installing llama-cpp-python with Metal support..."
-  CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python --force-reinstall --upgrade
-elif [ "$BACKEND" == "OPENBLAS" ]; then
-  echo "Installing llama-cpp-python with OpenBLAS support..."
-  CMAKE_ARGS="-DLLAMA_OPENBLAS=on" pip install llama-cpp-python --force-reinstall --upgrade
+# Check if a virtual environment already exists
+if [ -d "venv" ]; then
+    echo "Virtual environment already exists. Skipping setup."
 else
-  echo "Installing llama-cpp-python with CPU support..."
-  pip install llama-cpp-python --force-reinstall --upgrade
-fi
+    echo "Virtual environment not found. Proceeding with setup."
 
-# Install FastAPI and other dependencies
-echo "Installing FastAPI and other dependencies..."
-pip install -r ../deploy/requirements.txt
+    # Check for Python installation
+    if ! command_exists python; then
+        #make check for just python and also python3
+        echo "Python is not installed. Please install it and rerun the script."
+        echo "Download it from this link: https://www.python.org/downloads/"
+        exit 1
+    fi
+
+    echo "Python is installed. Version: $(python --version)"
+
+    echo "Creating virtual environment..."
+    python -m venv venv
+
+    # Activate virtual environment (Git Bash / WSL)
+    echo "Activating virtual environment..."
+    source venv/Scripts/activate
+
+    fi
+
+    echo "Installing dependencies..."
+    pip install --upgrade pip
+    pip install -r ../deploy/requirements.txt
+
+    echo "Setup complete! Virtual environment is ready."
+fi
 
 # Check if MODEL_ID contains a specific model file (repo:model format)
 if [[ $MODEL_ID == *":"* ]]; then
