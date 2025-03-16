@@ -32,11 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Load data for the active tab
       if (tabId === 'users') {
-        console.log('Loading users data');
-        loadUsers();
-      } else if (tabId === 'stats') {
-        console.log('Loading usage stats data');
-        loadUsageStats();
+        console.log('Loading users data and stats');
+        loadUsersAndStats();
       }
     });
   });
@@ -44,8 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load system information
   loadSystemInfo();
   
-  // Load users
-  loadUsers();
+  // Load users and stats
+  loadUsersAndStats();
   
   // Setup run button
   const runButton = document.getElementById('run-button');
@@ -71,8 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('api-key-modal');
   const closeButton = document.querySelector('.close');
   const saveApiKeyButton = document.getElementById('save-api-key');
+  const copyGeneratedKeyButton = document.getElementById('copy-generated-key');
   
   addApiKeyButton.addEventListener('click', () => {
+    // Clear previous values
+    document.getElementById('user-name').value = '';
+    document.getElementById('api-key').value = '';
+    
+    // Generate a random API key
+    const apiKey = generateApiKey();
+    document.getElementById('api-key').value = apiKey;
+    
     modal.style.display = 'block';
   });
   
@@ -88,6 +94,20 @@ document.addEventListener('DOMContentLoaded', () => {
   
   saveApiKeyButton.addEventListener('click', saveApiKey);
   
+  // Add copy functionality for the generated API key
+  copyGeneratedKeyButton.addEventListener('click', () => {
+    const apiKeyInput = document.getElementById('api-key');
+    apiKeyInput.select();
+    document.execCommand('copy');
+    
+    // Show a temporary "Copied!" message
+    const originalText = copyGeneratedKeyButton.textContent;
+    copyGeneratedKeyButton.textContent = 'Copied!';
+    setTimeout(() => {
+      copyGeneratedKeyButton.textContent = originalText;
+    }, 2000);
+  });
+  
   // Setup output listeners
   window.api.onSetupOutput((data) => {
     const outputText = document.getElementById('output-text');
@@ -97,10 +117,26 @@ document.addEventListener('DOMContentLoaded', () => {
   
   window.api.onSetupError((data) => {
     const outputText = document.getElementById('output-text');
-    outputText.textContent += `ERROR: ${data}`;
+    outputText.textContent += `${data}`;
     outputText.scrollTop = outputText.scrollHeight;
   });
 });
+
+// Generate a random API key
+function generateApiKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let key = '';
+  
+  // Generate a key in format: xxxx-xxxx-xxxx-xxxx
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 4; j++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    if (i < 3) key += '-';
+  }
+  
+  return key;
+}
 
 // Fetch models from a Hugging Face repository
 async function fetchModels() {
@@ -319,10 +355,15 @@ async function loadSystemInfo() {
   }
 }
 
-// Load users
-async function loadUsers() {
+// Load users and stats combined
+async function loadUsersAndStats() {
   try {
-    const users = await window.api.getUsers();
+    // Get both users and usage stats
+    const [users, stats] = await Promise.all([
+      window.api.getUsers(),
+      window.api.getUsageStats()
+    ]);
+    
     const usersListElement = document.getElementById('users-list');
     
     if (users.length === 0) {
@@ -333,13 +374,48 @@ async function loadUsers() {
     let html = '';
     users.forEach((user) => {
       const createdAt = new Date(user.created_at).toLocaleString();
+      const userName = user.name;
+      
+      // Get stats for this user if available
+      const userStats = stats[userName] || {
+        total_requests: 0,
+        total_tokens: 0,
+        last_request: null,
+        endpoints: {}
+      };
+      
+      const lastRequest = userStats.last_request ? new Date(userStats.last_request).toLocaleString() : 'Never';
+      
+      // Build endpoints HTML
+      let endpointsHtml = '';
+      if (Object.keys(userStats.endpoints).length > 0) {
+        endpointsHtml = '<h4>Endpoints</h4><ul>';
+        for (const [endpoint, count] of Object.entries(userStats.endpoints)) {
+          endpointsHtml += `<li><strong>${endpoint}:</strong> ${count} requests</li>`;
+        }
+        endpointsHtml += '</ul>';
+      } else {
+        endpointsHtml = '<p>No endpoint usage data available.</p>';
+      }
+      
       html += `
         <div class="user-card">
           <div class="user-info">
-            <h3>${user.name}</h3>
-            <p><strong>API Key:</strong> ${user.api_key}</p>
+            <h3>${userName}</h3>
+            <p><strong>API Key:</strong> <span class="api-key-value">${user.api_key}</span> 
+              <button class="copy-api-key" data-key="${user.api_key}">Copy</button>
+            </p>
             <p><strong>Created:</strong> ${createdAt}</p>
             <p><strong>Admin:</strong> ${user.is_admin ? 'Yes' : 'No'}</p>
+          </div>
+          <div class="user-stats">
+            <h4>Usage Statistics</h4>
+            <p><strong>Total Requests:</strong> ${userStats.total_requests}</p>
+            <p><strong>Total Tokens:</strong> ${userStats.total_tokens}</p>
+            <p><strong>Last Request:</strong> ${lastRequest}</p>
+            <div class="endpoints-section">
+              ${endpointsHtml}
+            </div>
           </div>
           <div class="user-actions">
             <button class="delete-user" data-id="${user.id}">Delete</button>
@@ -357,61 +433,25 @@ async function loadUsers() {
         await deleteUser(userId);
       });
     });
+    
+    // Add event listeners to copy buttons
+    document.querySelectorAll('.copy-api-key').forEach(button => {
+      button.addEventListener('click', () => {
+        const apiKey = button.getAttribute('data-key');
+        navigator.clipboard.writeText(apiKey).then(() => {
+          // Show a temporary "Copied!" message
+          const originalText = button.textContent;
+          button.textContent = 'Copied!';
+          setTimeout(() => {
+            button.textContent = originalText;
+          }, 2000);
+        });
+      });
+    });
   } catch (error) {
-    console.error('Error loading users:', error);
+    console.error('Error loading users and stats:', error);
     const usersListElement = document.getElementById('users-list');
-    usersListElement.innerHTML = `<p class="error">Error loading users: ${error.message}</p>`;
-  }
-}
-
-// Load usage statistics
-async function loadUsageStats() {
-  try {
-    const stats = await window.api.getUsageStats();
-    const statsElement = document.getElementById('stats-container');
-    
-    if (Object.keys(stats).length === 0) {
-      statsElement.innerHTML = '<p>No usage statistics available.</p>';
-      return;
-    }
-    
-    let html = '<div class="stats-grid">';
-    
-    // Create a card for each user
-    for (const [userName, userStats] of Object.entries(stats)) {
-      const lastRequest = userStats.last_request ? new Date(userStats.last_request).toLocaleString() : 'Never';
-      
-      html += `
-        <div class="stats-card">
-          <h3>${userName}</h3>
-          <div class="stats-info">
-            <p><strong>Total Requests:</strong> ${userStats.total_requests}</p>
-            <p><strong>Total Tokens:</strong> ${userStats.total_tokens}</p>
-            <p><strong>Last Request:</strong> ${lastRequest}</p>
-          </div>
-          <div class="stats-endpoints">
-            <h4>Endpoints</h4>
-            <ul>
-      `;
-      
-      // Add endpoint usage
-      for (const [endpoint, count] of Object.entries(userStats.endpoints)) {
-        html += `<li><strong>${endpoint}:</strong> ${count} requests</li>`;
-      }
-      
-      html += `
-            </ul>
-          </div>
-        </div>
-      `;
-    }
-    
-    html += '</div>';
-    statsElement.innerHTML = html;
-  } catch (error) {
-    console.error('Error loading usage statistics:', error);
-    const statsElement = document.getElementById('stats-container');
-    statsElement.innerHTML = `<p class="error">Error loading usage statistics: ${error.message}</p>`;
+    usersListElement.innerHTML = `<p class="error">Error loading users and stats: ${error.message}</p>`;
   }
 }
 
@@ -434,7 +474,7 @@ async function saveApiKey() {
     document.getElementById('api-key-modal').style.display = 'none';
     
     // Reload users list
-    loadUsers();
+    loadUsersAndStats();
   } catch (error) {
     console.error('Error saving API key:', error);
     alert(`Error saving API key: ${error.message}`);
@@ -451,7 +491,7 @@ async function deleteUser(userId) {
     await window.api.deleteUser(userId);
     
     // Reload users list
-    loadUsers();
+    loadUsersAndStats();
   } catch (error) {
     console.error('Error deleting user:', error);
     alert(`Error deleting user: ${error.message}`);

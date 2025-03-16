@@ -10,8 +10,7 @@
   <div class="container">
     <div class="tabs">
       <button class="tab-button active" data-tab="setup">Setup</button>
-      <button class="tab-button" data-tab="users">Users</button>
-      <button class="tab-button" data-tab="stats">Usage Stats</button>
+      <button class="tab-button" data-tab="users">Users & API Keys</button>
     </div>
     
     <div class="tab-content">
@@ -66,15 +65,15 @@
         </div>
       </div>
       
-      <!-- Users Tab -->
+      <!-- Users & API Keys Tab (Combined) -->
       <div id="users" class="tab-pane">
         <div class="users-header">
-          <h1>User Management</h1>
+          <h1>User Management & Usage Statistics</h1>
           <button id="add-api-key" class="btn btn-primary">New API Key</button>
         </div>
         
         <div id="users-list" class="users-list">
-          <p>No users found.</p>
+          <p>Loading users and statistics...</p>
         </div>
         
         <div id="api-key-modal" class="modal">
@@ -87,21 +86,14 @@
             </div>
             <div class="form-group">
               <label for="api-key">API Key:</label>
-              <input type="text" id="api-key" class="form-control">
+              <div class="api-key-container">
+                <input type="text" id="api-key" class="form-control" readonly>
+                <button id="copy-generated-key" class="btn">Copy</button>
+              </div>
+              <p class="help-text">This API key is automatically generated and can be used immediately.</p>
             </div>
             <button id="save-api-key" class="btn btn-primary">Save</button>
           </div>
-        </div>
-      </div>
-      
-      <!-- Usage Stats Tab -->
-      <div id="stats" class="tab-pane">
-        <div class="stats-header">
-          <h1>Usage Statistics</h1>
-        </div>
-        
-        <div id="stats-container" class="stats-container">
-          <p>Loading usage statistics...</p>
         </div>
       </div>
     </div>
