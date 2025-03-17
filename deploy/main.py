@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Optional, Dict, List, Any
 import json
 import os
@@ -54,6 +54,7 @@ async def track_usage(request: Request, call_next):
     # Get API key from Authorization header
     authorization = request.headers.get("Authorization")
     user_id = None
+    endpoint = request.url.path
     
     # If authorization header is present, validate the API key
     if authorization:
@@ -76,7 +77,6 @@ async def track_usage(request: Request, call_next):
         user_id = user["id"]
         
         # Track endpoint usage
-        endpoint = request.url.path
         database.record_usage(user_id, endpoint, 0)  # Initial record with 0 tokens
     
     # Process the request
@@ -87,29 +87,7 @@ async def track_usage(request: Request, call_next):
     # Add processing time to response headers
     response.headers["X-Process-Time"] = str(process_time)
     
-    # If it's a completion request and we have a user_id, try to extract token usage
-    if user_id and (endpoint == "/v1/completions" or endpoint == "/v1/chat/completions"):
-        try:
-            response_body = b""
-            async for chunk in response.body_iterator:
-                response_body += chunk
-            
-            # Parse response to get token usage
-            response_data = json.loads(response_body)
-            if "usage" in response_data and "total_tokens" in response_data["usage"]:
-                tokens = response_data["usage"]["total_tokens"]
-                # Record token usage
-                database.record_usage(user_id, endpoint, tokens)
-            
-            # Create a new response with the same body
-            return JSONResponse(
-                content=json.loads(response_body),
-                status_code=response.status_code,
-                headers=dict(response.headers)
-            )
-        except Exception as e:
-            print(f"Error tracking token usage: {e}")
-    
+    # We'll handle token usage tracking in the proxy endpoint
     return response
 
 # Proxy route for all llama-cpp-python server endpoints
@@ -117,20 +95,33 @@ async def track_usage(request: Request, call_next):
 async def proxy_endpoint(request: Request, path: str, api_key: Optional[str] = Depends(validate_api_key)):
     # Get user from API key if provided
     user = None
+    user_id = None
     if api_key:
         user = database.get_user_by_api_key(api_key)
+        if user:
+            user_id = user["id"]
+    
+    # Get request body if any
+    body = None
+    is_streaming = False
+    
+    if request.method in ["POST", "PUT"]:
+        body = await request.body()
+        
+        # Check if this is a streaming request for completions endpoints
+        if request.method == "POST" and path in ["v1/completions", "v1/chat/completions"]:
+            try:
+                body_json = json.loads(body)
+                is_streaming = body_json.get("stream", False)
+            except Exception as e:
+                print(f"Error parsing request body: {e}")
     
     # Forward the request to the llama-cpp-python server
     client = httpx.AsyncClient(base_url="http://localhost:8000")
     
-    # Get request body if any
-    body = None
-    if request.method in ["POST", "PUT"]:
-        body = await request.body()
-    
     # Forward the request
     try:
-        # Create headers dictionary without host and Authorization (we don't want to forward the API key)
+        # Create headers dictionary without host and Authorization
         headers = {key: value for key, value in request.headers.items() 
                   if key.lower() != "host" and key.lower() != "authorization"}
         
@@ -142,13 +133,36 @@ async def proxy_endpoint(request: Request, path: str, api_key: Optional[str] = D
             params=request.query_params,
         )
         
-        # Return the response
-        return JSONResponse(
-            content=response.json() if response.content else None,
-            status_code=response.status_code,
-            headers=dict(response.headers)
-        )
+        # For streaming responses, we need to return the response as a stream
+        if is_streaming:
+            from fastapi.responses import StreamingResponse
+            
+            # For streaming, we can't easily track token usage
+            # Just return the streaming response
+            return StreamingResponse(
+                content=response.aiter_bytes(),
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        else:
+            # For non-streaming responses, we can track token usage
+            response_data = response.json() if response.content else None
+            
+            # Track token usage if this is a completion request and we have a user_id
+            if user_id and path in ["v1/completions", "v1/chat/completions"] and response_data and "usage" in response_data:
+                if "total_tokens" in response_data["usage"]:
+                    tokens = response_data["usage"]["total_tokens"]
+                    # Record token usage
+                    database.record_usage(user_id, f"/{path}", tokens)
+            
+            # Return the response
+            return JSONResponse(
+                content=response_data,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
     except Exception as e:
+        print(f"Error forwarding request: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={"detail": f"Error forwarding request: {str(e)}"}
