@@ -27,9 +27,12 @@ app.add_middleware(
 )
 
 # Function to validate API key
-async def validate_api_key(authorization: str = Header(None, description="Authorization header with Bearer token")):
+async def validate_api_key(authorization: str = Header(None, description="Optional Authorization header with Bearer token")):
     print(f"Authorization header: {authorization}")
-    if not authorization or not authorization.startswith("Bearer "):
+    if not authorization:
+        return None  # No API key provided, but that's allowed now
+    
+    if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header. Must be 'Bearer {api_key}'")
     
     api_key = authorization.replace("Bearer ", "")
@@ -50,27 +53,31 @@ async def track_usage(request: Request, call_next):
     
     # Get API key from Authorization header
     authorization = request.headers.get("Authorization")
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Invalid authorization header. Must be 'Bearer {api_key}'"}
-        )
+    user_id = None
     
-    api_key = authorization.replace("Bearer ", "")
-    
-    # Validate API key
-    user = database.get_user_by_api_key(api_key)
-    if not user:
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Invalid API key"}
-        )
-    
-    user_id = user["id"]
-    
-    # Track endpoint usage
-    endpoint = request.url.path
-    database.record_usage(user_id, endpoint, 0)  # Initial record with 0 tokens
+    # If authorization header is present, validate the API key
+    if authorization:
+        if not authorization.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid authorization header. Must be 'Bearer {api_key}'"}
+            )
+        
+        api_key = authorization.replace("Bearer ", "")
+        
+        # Validate API key
+        user = database.get_user_by_api_key(api_key)
+        if not user:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid API key"}
+            )
+        
+        user_id = user["id"]
+        
+        # Track endpoint usage
+        endpoint = request.url.path
+        database.record_usage(user_id, endpoint, 0)  # Initial record with 0 tokens
     
     # Process the request
     start_time = time.time()
@@ -80,8 +87,8 @@ async def track_usage(request: Request, call_next):
     # Add processing time to response headers
     response.headers["X-Process-Time"] = str(process_time)
     
-    # If it's a completion request, try to extract token usage
-    if endpoint == "/v1/completions" or endpoint == "/v1/chat/completions":
+    # If it's a completion request and we have a user_id, try to extract token usage
+    if user_id and (endpoint == "/v1/completions" or endpoint == "/v1/chat/completions"):
         try:
             response_body = b""
             async for chunk in response.body_iterator:
@@ -107,12 +114,11 @@ async def track_usage(request: Request, call_next):
 
 # Proxy route for all llama-cpp-python server endpoints
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def proxy_endpoint(request: Request, path: str, api_key: str = Depends(validate_api_key)):
-
-    print(f"All request headers: {dict(request.headers)}")
-
-    # Get user from API key
-    user = database.get_user_by_api_key(api_key)
+async def proxy_endpoint(request: Request, path: str, api_key: Optional[str] = Depends(validate_api_key)):
+    # Get user from API key if provided
+    user = None
+    if api_key:
+        user = database.get_user_by_api_key(api_key)
     
     # Forward the request to the llama-cpp-python server
     client = httpx.AsyncClient(base_url="http://localhost:8000")
@@ -152,7 +158,11 @@ async def proxy_endpoint(request: Request, path: str, api_key: str = Depends(val
 
 # Endpoint to get usage statistics
 @app.get("/admin/usage", response_model=Dict[str, Any])
-async def get_usage_stats(api_key: str = Depends(validate_api_key)):
+async def get_usage_stats(api_key: Optional[str] = Depends(validate_api_key)):
+    # Ensure API key is provided for admin endpoints
+    if not api_key:
+        raise HTTPException(status_code=401, detail="API key required for admin endpoints")
+    
     # Get user from API key
     user = database.get_user_by_api_key(api_key)
     
