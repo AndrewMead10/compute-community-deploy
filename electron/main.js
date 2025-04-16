@@ -19,7 +19,7 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
-  
+
   // Open DevTools in development
   // mainWindow.webContents.openDevTools();
 }
@@ -46,7 +46,7 @@ ipcMain.handle('get-system-info', async () => {
       si.mem(),
       si.osInfo()
     ]);
-    
+
     return {
       cpu: {
         model: cpu.manufacturer + ' ' + cpu.brand,
@@ -80,24 +80,24 @@ ipcMain.handle('get-system-info', async () => {
 ipcMain.handle('run-model', async (event, { backend, modelId }) => {
   return new Promise((resolve) => {
     let serverProcess;
-    
+
     // Execute the setup.sh script with the backend and model ID as arguments
-    const setupProcess = exec(`bash ${path.join(__dirname, 'setup.sh')} ${backend} ${modelId}`, 
+    const setupProcess = exec(`bash ${path.join(__dirname, 'setup.sh')} ${backend} ${modelId}`,
       (error, stdout, stderr) => {
         if (error) {
           console.error(`Error executing setup script: ${error}`);
           resolve({ success: false, error: error.message });
           return;
         }
-        
+
         console.log(`Setup script output: ${stdout}`);
         if (stderr) console.error(`Setup script stderr: ${stderr}`);
-        
+
         // After setup is complete, start the server
         mainWindow.webContents.send('setup-output', "Setup complete. Starting server...\n");
-        
+
         // Start the run.sh script to run the server
-        serverProcess = exec(`bash ${path.join(__dirname, 'run.sh')} ${backend} ${modelId}`, 
+        serverProcess = exec(`bash ${path.join(__dirname, 'run.sh')} ${backend} ${modelId}`,
           (error, stdout, stderr) => {
             if (error) {
               console.error(`Error executing run script: ${error}`);
@@ -107,30 +107,30 @@ ipcMain.handle('run-model', async (event, { backend, modelId }) => {
             }
           }
         );
-        
+
         // Stream server output to the renderer process
         serverProcess.stdout.on('data', (data) => {
           mainWindow.webContents.send('setup-output', data.toString());
         });
-        
+
         serverProcess.stderr.on('data', (data) => {
           mainWindow.webContents.send('setup-error', data.toString());
         });
-        
+
         // Resolve after starting the server
         resolve({ success: true, message: "Server started successfully" });
       }
     );
-    
+
     // Stream setup output to the renderer process
     setupProcess.stdout.on('data', (data) => {
       mainWindow.webContents.send('setup-output', data.toString());
     });
-    
+
     setupProcess.stderr.on('data', (data) => {
       mainWindow.webContents.send('setup-error', data.toString());
     });
-    
+
     // Handle app quit to kill the server process
     app.on('before-quit', () => {
       if (serverProcess) {
@@ -205,9 +205,9 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
 
       res.on('end', () => {
         if (res.statusCode !== 200) {
-          resolve({ 
-            success: false, 
-            error: `Failed to fetch models: HTTP ${res.statusCode}` 
+          resolve({
+            success: false,
+            error: `Failed to fetch models: HTTP ${res.statusCode}`
           });
           return;
         }
@@ -215,8 +215,8 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
         try {
           const files = JSON.parse(data);
           // Filter for GGUF files only
-          const ggufModels = files.filter(file => 
-            file.type === 'file' && 
+          const ggufModels = files.filter(file =>
+            file.type === 'file' &&
             file.path.toLowerCase().endsWith('.gguf')
           ).map(file => ({
             name: file.path,
@@ -224,15 +224,15 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
             lastModified: file.lastCommit
           }));
 
-          resolve({ 
-            success: true, 
-            models: ggufModels 
+          resolve({
+            success: true,
+            models: ggufModels
           });
         } catch (error) {
           console.error('Error parsing HF API response:', error);
-          resolve({ 
-            success: false, 
-            error: `Failed to parse response: ${error.message}` 
+          resolve({
+            success: false,
+            error: `Failed to parse response: ${error.message}`
           });
         }
       });
@@ -240,9 +240,9 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
 
     req.on('error', (error) => {
       console.error('Error fetching HF models:', error);
-      resolve({ 
-        success: false, 
-        error: `Network error: ${error.message}` 
+      resolve({
+        success: false,
+        error: `Network error: ${error.message}`
       });
     });
 
