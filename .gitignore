@@ -3,3 +3,5 @@ dist
 venv
 .venv
 __pycache__
+electron/models
+data
