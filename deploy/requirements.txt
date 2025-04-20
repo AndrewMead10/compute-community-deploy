@@ -6,3 +6,4 @@ setuptools
 wheel
 cmake
 httpx
+pydantic_ai
