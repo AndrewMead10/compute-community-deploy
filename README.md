@@ -1,78 +1,66 @@
-# TGI Manager
+# LLM API Server with Authentication and Usage Tracking
 
-A desktop application for managing and serving Hugging Face Text Generation Inference models locally.
+This project provides a user-friendly interface for running LLM models using llama-cpp-python, with API key authentication and usage tracking.
 
 ## Features
 
-- Configure and run TGI models with either CUDA or Llama.cpp backend
-- Manage API keys for server access
-- Automatic reverse proxy setup
-- Support for gated models with Hugging Face tokens
-- Automatic installation and setup of Text Generation Inference
+- **Easy Model Setup**: Run LLM models with different backends (CPU, CUDA, Metal, OpenBLAS)
+- **API Key Authentication**: Secure your API with user-specific API keys
+- **Usage Tracking**: Track API usage statistics per user
+- **System Monitoring**: Monitor CPU, memory, and GPU usage
+- **User Management**: Add and delete API keys through the UI
 
-## Installation
+## Architecture
 
-### Prerequisites
+The system consists of the following components:
 
-1. Node.js 16+ and npm
-2. Python 3.8+
-3. CUDA toolkit (for CUDA backend) or Llama.cpp (for CPU backend)
-4. Git
+1. **Electron App**: The main user interface for managing models, users, and viewing system information
+2. **Setup Script**: Installs llama-cpp-python with the appropriate backend and downloads models
+3. **LLama-cpp-python Server**: Runs the LLM model and provides the OpenAI-compatible API
+4. **FastAPI Middleware**: Handles API key authentication and usage tracking
 
-### Setup
+## How It Works
 
-The application will automatically set up Text Generation Inference and all its dependencies when it starts for the first time. This includes:
+1. When you click "Run Model" in the UI, the system:
+   - Runs the setup.sh script to install llama-cpp-python with the selected backend
+   - Downloads the model if it's a Hugging Face model ID
+   - Starts the llama-cpp-python server on port 8000
+   - Starts the FastAPI middleware on port 8080
 
-1. Installing system dependencies (including Rust and Protobuf)
-2. Setting up a Python virtual environment
-3. Building text-generation-inference from source
-4. Configuring the development environment
+2. The FastAPI middleware:
+   - Authenticates API requests using API keys
+   - Tracks usage statistics per user
+   - Forwards requests to the llama-cpp-python server
+   - Returns responses to the client
 
-Simply run:
-
-```bash
-# Install dependencies
-npm install
-
-# Build and start the application
-npm run build
-npm start
-```
-
-## Usage
-
-1. Start the application:
-```bash
-npm start
-```
-
-2. Configure your model:
-   - Enter the model ID (e.g., "meta-llama/Llama-2-7b-chat-hf")
-   - Choose your backend (CUDA or Llama.cpp)
-   - Enter your Hugging Face token if using gated models
-
-3. Generate API keys:
-   - Create new API keys for external access
-   - Enable/disable keys as needed
-
-4. Start the server:
-   - Click "Start Server" to launch the TGI instance
-   - The server will be accessible via the configured reverse proxy
+3. To use the API:
+   - Send requests to http://localhost:8080/v1/... (same endpoints as OpenAI API)
+   - Include your API key in the "api-key" header
 
 ## API Endpoints
 
-The TGI server exposes the following endpoints:
+The middleware provides the following endpoints:
 
-- `POST /generate`: Generate text from the model
-- `GET /health`: Check server health
-- `GET /metrics`: Get server metrics
+- All OpenAI-compatible endpoints from llama-cpp-python (forwarded)
+- `/admin/usage`: Get usage statistics for all users
 
-## Development
+## Usage Statistics
 
-To run in development mode:
+The system tracks the following usage statistics per user:
 
-```bash
-npm run dev
-```
+- Total number of requests
+- Total number of tokens used
+- Last request timestamp
+- Endpoint usage counts
 
-This will start both the Electron app and the FastAPI server with hot reloading.
+## Requirements
+
+- Python 3.8+
+- Node.js 14+
+- Electron
+- For CUDA backend: NVIDIA GPU with CUDA toolkit
+- For Metal backend: Apple Silicon or AMD GPU on macOS
+
+## License
+
+MIT 
