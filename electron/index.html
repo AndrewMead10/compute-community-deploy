@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Runner</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-button active" data-tab="setup">Setup</button>
+      <button class="tab-button" data-tab="users">Users & API Keys</button>
+    </div>
+    
+    <div class="tab-content">
+      <!-- Setup Tab -->
+      <div id="setup" class="tab-pane active">
+        <div class="main-content">
+          <h1>LLM Runner Setup</h1>
+          
+          <div class="form-group">
+            <label for="backend">Backend:</label>
+            <select id="backend" class="form-control">
+              <option value="CPU">CPU</option>
+              <option value="CUDA">CUDA (NVIDIA GPU)</option>
+              <option value="METAL">Metal (Apple Silicon/AMD GPU)</option>
+              <option value="OPENBLAS">OpenBLAS</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="repo-id">Repository ID (Hugging Face):</label>
+            <div class="input-with-button">
+              <input type="text" id="repo-id" class="form-control" placeholder="e.g., TheBloke/Llama-2-7B-GGUF">
+              <button id="fetch-models-button" class="btn">Fetch Models</button>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="model-select">Model:</label>
+            <select id="model-select" class="form-control" disabled>
+              <option value="">Select a repository first</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="local-model-path">Or use local model path:</label>
+            <input type="text" id="local-model-path" class="form-control" placeholder="e.g., /path/to/model.gguf">
+          </div>
+          
+          <button id="run-button" class="btn btn-primary">Run Model</button>
+          
+          <div id="output" class="output-container">
+            <h3>Output:</h3>
+            <pre id="output-text"></pre>
+          </div>
+        </div>
+        
+        <div class="sidebar">
+          <h2>System Information</h2>
+          <div id="system-info" class="system-info">
+            <p>Loading system information...</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Users & API Keys Tab (Combined) -->
+      <div id="users" class="tab-pane">
+        <div class="users-header">
+          <h1>User Management & Usage Statistics</h1>
+          <button id="add-api-key" class="btn btn-primary">New API Key</button>
+        </div>
+        
+        <div id="users-list" class="users-list">
+          <p>Loading users and statistics...</p>
+        </div>
+        
+        <div id="api-key-modal" class="modal">
+          <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add New API Key</h2>
+            <div class="form-group">
+              <label for="user-name">User Name:</label>
+              <input type="text" id="user-name" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="api-key">API Key:</label>
+              <div class="api-key-container">
+                <input type="text" id="api-key" class="form-control" readonly>
+                <button id="copy-generated-key" class="btn">Copy</button>
+              </div>
+              <p class="help-text">This API key is automatically generated and can be used immediately.</p>
+            </div>
+            <button id="save-api-key" class="btn btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="renderer.js"></script>
+</body>
+</html> 

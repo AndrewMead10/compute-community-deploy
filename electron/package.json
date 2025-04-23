@@ -1,0 +1,22 @@
+{
+  "name": "llm-runner",
+  "version": "1.0.0",
+  "description": "An Electron app to run LLMs with different backends",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "sqlite3": "^5.1.7",
+    "systeminformation": "^5.21.20"
+  }
+} 
