@@ -39,13 +39,61 @@ app.on('window-all-closed', function () {
 // IPC handlers for communication with renderer process
 ipcMain.handle('get-system-info', async () => {
   try {
-    const [cpu, cpuLoad, gpu, mem, os] = await Promise.all([
+    const [cpu, cpuLoad, gpu, mem, os, battery] = await Promise.all([
       si.cpu(),
       si.currentLoad(),
       si.graphics(),
       si.mem(),
-      si.osInfo()
+      si.osInfo(),
+      si.battery()
     ]);
+
+    // Initialize power tracking if it doesn't exist
+    if (!global.powerTracking) {
+      global.powerTracking = {
+        startTime: Date.now(),
+        cumulativePower: 0,
+        lastUpdateTime: Date.now(),
+        lastPowerDraw: 0
+      };
+    }
+
+    // Estimate power consumption based on CPU and GPU usage
+    // These are rough estimates and would need calibration for real-world accuracy
+    const cpuPowerDraw = (cpuLoad.currentLoad / 100) * cpu.cores * 5; // Rough estimate: 5W per core at 100%
+    
+    // GPU power estimation (very rough, only for NVIDIA GPUs with memory usage info)
+    let gpuPowerDraw = 0;
+    const hasNvidiaGpu = gpu.controllers.some(controller => 
+      controller.model && controller.model.toLowerCase().includes('nvidia') && controller.memoryUsed
+    );
+    
+    if (hasNvidiaGpu) {
+      const gpuController = gpu.controllers.find(controller => 
+        controller.model && controller.model.toLowerCase().includes('nvidia') && controller.memoryUsed
+      );
+      const gpuUsagePercent = gpuController.memoryUsed / gpuController.vram;
+      gpuPowerDraw = gpuUsagePercent * 150; // Rough estimate: up to 150W for NVIDIA GPU at full load
+    }
+    
+    // Total power draw in watts
+    const totalPowerDraw = cpuPowerDraw + gpuPowerDraw;
+    
+    // Calculate time since last update in hours
+    const currentTime = Date.now();
+    const hoursSinceLastUpdate = (currentTime - global.powerTracking.lastUpdateTime) / (1000 * 60 * 60);
+    
+    // Calculate energy used since last update (in watt-hours)
+    const averagePower = (global.powerTracking.lastPowerDraw + totalPowerDraw) / 2;
+    const energyUsed = averagePower * hoursSinceLastUpdate;
+    
+    // Update cumulative power consumption
+    global.powerTracking.cumulativePower += energyUsed;
+    global.powerTracking.lastUpdateTime = currentTime;
+    global.powerTracking.lastPowerDraw = totalPowerDraw;
+
+    // Calculate run time in hours
+    const runTimeHours = (currentTime - global.powerTracking.startTime) / (1000 * 60 * 60);
 
     return {
       cpu: {
@@ -69,6 +117,13 @@ ipcMain.handle('get-system-info', async () => {
         distro: os.distro,
         release: os.release,
         arch: os.arch
+      },
+      power: {
+        currentDraw: Math.round(totalPowerDraw * 10) / 10, // Round to 1 decimal
+        cumulativeWattHours: Math.round(global.powerTracking.cumulativePower * 100) / 100, // Round to 2 decimals
+        runTimeHours: Math.round(runTimeHours * 100) / 100, // Round to 2 decimals
+        batteryPercent: battery.percent,
+        isCharging: battery.isCharging
       }
     };
   } catch (error) {
@@ -80,6 +135,14 @@ ipcMain.handle('get-system-info', async () => {
 ipcMain.handle('run-model', async (event, { backend, modelId }) => {
   return new Promise((resolve) => {
     let serverProcess;
+
+    // Reset power tracking when starting a new model
+    global.powerTracking = {
+      startTime: Date.now(),
+      cumulativePower: 0,
+      lastUpdateTime: Date.now(),
+      lastPowerDraw: 0
+    };
 
     // Execute the setup.sh script with the backend and model ID as arguments
     const setupProcess = exec(`bash ${path.join(__dirname, 'setup.sh')} ${backend} ${modelId}`,
