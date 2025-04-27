@@ -277,6 +277,7 @@ async function runModel() {
   
   const outputText = document.getElementById('output-text');
   outputText.textContent = `Starting setup with backend: ${backend}, model: ${modelId}...\n`;
+  outputText.textContent += `Power consumption tracking has been reset and started.\n`;
   
   const runButton = document.getElementById('run-button');
   runButton.disabled = true;
@@ -287,6 +288,7 @@ async function runModel() {
     
     if (result.success) {
       outputText.textContent += '\nSetup completed successfully!\n';
+      outputText.textContent += 'Power consumption is now being tracked in real-time.\n';
     } else {
       outputText.textContent += `\nSetup failed: ${result.error}\n`;
     }
@@ -366,6 +368,35 @@ async function loadSystemInfo() {
           `;
         }
       });
+      
+      html += `</div>`;
+    }
+    
+    // Add Power Consumption Section
+    if (systemInfo.power) {
+      // Calculate power usage intensity level (0-100%) for color coding
+      // Assuming 300W is high power consumption
+      const powerIntensity = Math.min(100, Math.round((systemInfo.power.currentDraw / 300) * 100));
+      
+      html += `
+        <div class="info-section">
+          <h3>Power Consumption</h3>
+          <p><strong>Current Draw:</strong> ${systemInfo.power.currentDraw} W</p>
+          <p><strong>Cumulative Energy:</strong> ${systemInfo.power.cumulativeWattHours} Wh</p>
+          <p><strong>Running Time:</strong> ${systemInfo.power.runTimeHours} hours</p>
+          <div class="usage-bar-container">
+            <div class="usage-bar power-bar" style="width: ${powerIntensity}%"></div>
+            <span class="usage-text">${systemInfo.power.currentDraw} W Current Usage</span>
+          </div>
+      `;
+      
+      // Add battery information if available
+      if (systemInfo.power.batteryPercent !== undefined) {
+        const batteryIcon = systemInfo.power.isCharging ? '🔌' : '🔋';
+        html += `
+          <p><strong>Battery Status:</strong> ${batteryIcon} ${systemInfo.power.batteryPercent}%${systemInfo.power.isCharging ? ' (Charging)' : ''}</p>
+        `;
+      }
       
       html += `</div>`;
     }
