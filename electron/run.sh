@@ -4,24 +4,33 @@
 # Arguments:
 # $1 - Backend (CPU, CUDA, etc.)
 # $2 - Model ID (path or HF model ID)
+# $3 - RAM Memory Allocation (percentage)
+# $4 - GPU Memory Allocation (percentage)
 
 BACKEND=$1
 MODEL_ID=$2
+RAM_MEMORY=$3
+GPU_MEMORY=$4
 
 echo "Starting llama-cpp-python server with backend: $BACKEND and model: $MODEL_ID"
+echo "Memory settings: RAM ${RAM_MEMORY}%, GPU ${GPU_MEMORY}%"
 
 # Set environment variables based on backend
 if [ "$BACKEND" == "CUDA" ]; then
   export LLAMA_CUBLAS=1
-  echo "Using CUDA backend"
+  export CUDA_VISIBLE_DEVICES=0
+  export CUDA_MEMORY_FRACTION=$GPU_MEMORY
+  echo "Using CUDA backend with ${GPU_MEMORY}% GPU memory"
 elif [ "$BACKEND" == "METAL" ]; then
   export LLAMA_METAL=1
-  echo "Using Metal backend"
+  export METAL_MEMORY_FRACTION=$GPU_MEMORY
+  echo "Using Metal backend with ${GPU_MEMORY}% GPU memory"
 elif [ "$BACKEND" == "OPENBLAS" ]; then
   export LLAMA_OPENBLAS=1
   echo "Using OpenBLAS backend"
 else
-  echo "Using CPU backend"
+  export LLAMA_MAX_CPU_MEMORY_PERCENT=$RAM_MEMORY
+  echo "Using CPU backend with ${RAM_MEMORY}% RAM allocation"
 fi
 
 # Activate virtual environment

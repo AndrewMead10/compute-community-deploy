@@ -4,6 +4,7 @@ const { exec } = require('child_process');
 const si = require('systeminformation');
 const db = require('./database');
 const https = require('https');
+const { MODEL_RECOMMENDATIONS } = require('./models');
 
 let mainWindow;
 
@@ -77,12 +78,13 @@ ipcMain.handle('get-system-info', async () => {
   }
 });
 
-ipcMain.handle('run-model', async (event, { backend, modelId }) => {
+ipcMain.handle('run-model', async (event, { backend, modelId, memorySettings }) => {
   return new Promise((resolve) => {
     let serverProcess;
 
-    // Execute the setup.sh script with the backend and model ID as arguments
-    const setupProcess = exec(`bash ${path.join(__dirname, 'setup.sh')} ${backend} ${modelId}`,
+    // Execute the setup.sh script with the backend, model ID, and memory settings as arguments
+    const setupProcess = exec(
+      `bash "${path.join(__dirname, 'setup.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
       (error, stdout, stderr) => {
         if (error) {
           console.error(`Error executing setup script: ${error}`);
@@ -96,8 +98,9 @@ ipcMain.handle('run-model', async (event, { backend, modelId }) => {
         // After setup is complete, start the server
         mainWindow.webContents.send('setup-output', "Setup complete. Starting server...\n");
 
-        // Start the run.sh script to run the server
-        serverProcess = exec(`bash ${path.join(__dirname, 'run.sh')} ${backend} ${modelId}`,
+        // Start the run.sh script to run the server with memory settings
+        serverProcess = exec(
+          `bash "${path.join(__dirname, 'run.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
           (error, stdout, stderr) => {
             if (error) {
               console.error(`Error executing run script: ${error}`);
@@ -248,4 +251,139 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
 
     req.end();
   });
+});
+
+// Add new IPC handler for model recommendations
+ipcMain.handle('get-model-recommendations', async (event, { backend, memorySettings } = {}) => {
+  try {
+    // Ensure backend has a default value
+    backend = backend || 'CPU';
+
+    const [cpu, mem, gpu] = await Promise.all([
+      si.cpu(),
+      si.mem(),
+      si.graphics()
+    ]);
+
+    const totalRamGB = Math.round(mem.total / (1024 * 1024 * 1024));
+    const hasGPU = gpu.controllers.some(controller =>
+      controller.model && (
+        controller.model.toLowerCase().includes('nvidia') ||
+        controller.model.toLowerCase().includes('amd') ||
+        controller.model.toLowerCase().includes('apple')
+      )
+    );
+
+    // Get available GPU memory (if any)
+    let gpuMemoryGB = 0;
+    if (hasGPU) {
+      const gpuController = gpu.controllers.find(controller =>
+        controller.model && (
+          controller.model.toLowerCase().includes('nvidia') ||
+          controller.model.toLowerCase().includes('amd') ||
+          controller.model.toLowerCase().includes('apple')
+        )
+      );
+      if (gpuController && gpuController.vram) {
+        gpuMemoryGB = Math.round(gpuController.vram / 1024); // Convert MB to GB
+      }
+    }
+
+    // Calculate available memory based on allocation settings
+    const effectiveRamGB = memorySettings?.cpu ? Math.floor(totalRamGB * memorySettings.cpu / 100) : totalRamGB;
+    const effectiveGpuGB = memorySettings?.gpu ? Math.floor(gpuMemoryGB * memorySettings.gpu / 100) : gpuMemoryGB;
+
+    // Filter recommendations based on available memory and current backend
+    const isGPUBackend = backend && ['CUDA', 'METAL'].includes(backend);
+    const recommendations = {};
+
+    for (const [size, data] of Object.entries(MODEL_RECOMMENDATIONS)) {
+      const availableMemory = isGPUBackend ? effectiveGpuGB : effectiveRamGB;
+      const memoryRequired = isGPUBackend ? Math.ceil(data.min_ram / 2) : data.min_ram; // GPU typically needs half the RAM
+
+      if (availableMemory >= memoryRequired) {
+        // Create a copy of the data with processed models for the current backend
+        const processedData = { ...data, models: [] };
+
+        // Process each model to include only data relevant to the current backend
+        for (const model of data.models) {
+          const backendType = isGPUBackend ? 'gpu' : 'cpu';
+          const backendData = model[backendType];
+
+          if (backendData) {
+            // Create a processed model with only the backend-specific data
+            const processedModel = {
+              name: model.name,
+              params_b: model.params_b,
+              description: model.description,
+              ram_required: backendData.ram_required,
+              repo: backendData.repo
+            };
+
+            // For CPU backend, also include file information
+            if (backendType === 'cpu') {
+              processedModel.file = backendData.file;
+              processedModel.file_size_gb = backendData.file_size_gb;
+              processedModel.quant = backendData.quant;
+            }
+
+            processedData.models.push(processedModel);
+          }
+        }
+
+        recommendations[size] = {
+          ...processedData,
+          suitable: true,
+          reason: `Suitable for your hardware with current allocation (${availableMemory}GB ${isGPUBackend ? 'GPU' : 'RAM'} available, needs ${memoryRequired}GB)`
+        };
+      } else {
+        // Deep clone the data to prevent modification of unsuitable models
+        const clonedData = JSON.parse(JSON.stringify(data));
+
+        // Only include GPU or CPU models based on the backend
+        if (clonedData.models) {
+          clonedData.models = clonedData.models.map(model => {
+            const backendType = isGPUBackend ? 'gpu' : 'cpu';
+            const backendData = model[backendType];
+
+            if (!backendData) return null;
+
+            const processedModel = {
+              name: model.name,
+              params_b: model.params_b,
+              description: model.description,
+              ram_required: backendData.ram_required,
+              repo: backendData.repo
+            };
+
+            if (backendType === 'cpu') {
+              processedModel.file = backendData.file;
+              processedModel.file_size_gb = backendData.file_size_gb;
+              processedModel.quant = backendData.quant;
+            }
+
+            return processedModel;
+          }).filter(model => model !== null);
+        }
+
+        recommendations[size] = {
+          ...clonedData,
+          suitable: false,
+          reason: `Requires ${memoryRequired}GB ${isGPUBackend ? 'GPU memory' : 'RAM'} (you have ${availableMemory}GB allocated)`
+        };
+      }
+    }
+
+    return {
+      recommendations,
+      system: {
+        ram: effectiveRamGB,
+        hasGPU,
+        gpuMemory: effectiveGpuGB
+      }
+    };
+  } catch (error) {
+    console.error('Error getting model recommendations:', error);
+    return { error: 'Failed to get model recommendations' };
+  }
 }); 
