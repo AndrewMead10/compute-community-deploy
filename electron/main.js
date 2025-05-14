@@ -4,144 +4,7 @@ const { exec } = require('child_process');
 const si = require('systeminformation');
 const db = require('./database');
 const https = require('https');
-
-// Model recommendations data  – last refreshed 20 Apr 2025
-const MODEL_RECOMMENDATIONS = {
-  tiny: {                 // <5 B params
-    name: "<5 B parameters",
-    min_ram: 8,           // GB
-    models: [
-      {
-        name: "TinyLlama‑1.1B‑Chat",
-        repo: "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
-        file: "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
-        params_b: 1.1,
-        file_size_gb: 0.67,
-        ram_required: 3.17,
-        quant: "Q4_K_M",
-        description: "Good baseline chat model that fits in ~3 GB of RAM – perfect for laptops."
-      },
-      {
-        name: "Phi‑2 (2.7 B)",
-        repo: "TheBloke/phi-2-GGUF",
-        file: "phi-2.Q4_K_M.gguf",
-        params_b: 2.7,
-        file_size_gb: 1.79,
-        ram_required: 4.29,
-        quant: "Q4_K_M",
-        description: "Small Microsoft research model with surprisingly strong reasoning."
-      },
-      {
-        name: "Gemma‑2B‑It",
-        repo: "MaziyarPanahi/gemma-2b-it-GGUF",
-        file: "gemma-2b-it.Q4_K_M.gguf",
-        params_b: 2.0,
-        file_size_gb: 1.63,
-        ram_required: 4.0,          // calculated ≈ 2.5× file size
-        quant: "Q4_K_M",
-        description: "Google’s compact instruction‑tuned Gemma, extended 32 k context."
-      }
-    ]
-  },
-
-  small: {                // 5‑10 B
-    name: "5‑10 B parameters",
-    min_ram: 16,
-    models: [
-      {
-        name: "Mistral‑7B‑Instruct‑v0.2",
-        repo: "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
-        file: "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
-        params_b: 7,
-        file_size_gb: 4.37,
-        ram_required: 6.87,
-        quant: "Q4_K_M",
-        description: "Fast, high‑quality 7 B model – great all‑rounder on 16 GB RAM machines."
-      },
-      {
-        name: "Stable‑Beluga‑7B",
-        repo: "TheBloke/StableBeluga-7B-GGUF",
-        file: "stablebeluga-7b.Q4_K_M.gguf",
-        params_b: 7,
-        file_size_gb: 4.40,
-        ram_required: 7.0,
-        quant: "Q4_K_M",
-        description: "Stability AI fine‑tune focused on creative chat‑style responses."
-      },
-      {
-        name: "Gemma‑7B‑It",
-        repo: "google/gemma-7b-it-GGUF",
-        file: "gemma-7b-it.Q4_K_M.gguf",
-        params_b: 7,
-        file_size_gb: 4.55,
-        ram_required: 7.2,
-        quant: "Q4_K_M",
-        description: "Latest Google Gemma – strong instruction following, long context (32 k)."
-      }
-    ]
-  },
-
-  medium: {               // 10‑20 B
-    name: "10‑20 B parameters",
-    min_ram: 32,
-    models: [
-      {
-        name: "CodeLlama‑13B‑Instruct",
-        repo: "TheBloke/CodeLlama-13B-Instruct-GGUF",
-        file: "codellama-13b-instruct.Q4_K_M.gguf",
-        params_b: 13,
-        file_size_gb: 7.87,
-        ram_required: 10.37,
-        quant: "Q4_K_M",
-        description: "Meta’s coding specialist – needs ~10 GB system RAM or VRAM."
-      },
-      {
-        name: "Llama‑2‑13B‑Chat",
-        repo: "TheBloke/Llama-2-13B-chat-GGUF",
-        file: "llama-2-13b-chat.Q4_K_M.gguf",
-        params_b: 13,
-        file_size_gb: 7.87,
-        ram_required: 10.37,
-        quant: "Q4_K_M",
-        description: "Solid general‑purpose assistant, strong factual grounding."
-      }
-    ]
-  },
-
-  large: {                // 20‑35 B
-    name: "20‑35 B parameters",
-    min_ram: 48,
-    models: [
-      {
-        name: "Llama‑2‑34B‑Chat (OpenBuddy)",
-        repo: "TheBloke/openbuddy-llama2-34b-v11.1-bf16-GGUF",
-        file: "openbuddy-llama2-34b-v11.1-bf16.Q4_K_M.gguf",
-        params_b: 34,
-        file_size_gb: 20.28,
-        ram_required: 22.78,
-        quant: "Q4_K_M",
-        description: "Powerful 34 B model with rich knowledge and balanced personality."
-      }
-    ]
-  },
-
-  xlarge: {               // 35 B+
-    name: "35 B+ parameters",
-    min_ram: 64,
-    models: [
-      {
-        name: "Llama‑2‑70B‑Chat",
-        repo: "TheBloke/Llama-2-70B-Chat-GGUF",
-        file: "llama-2-70b-chat.Q4_K_M.gguf",
-        params_b: 70,
-        file_size_gb: 41.42,
-        ram_required: 43.92,
-        quant: "Q4_K_M",
-        description: "Flagship 70 B model – needs ~44 GB RAM or split across CPU+GPU."
-      }
-    ]
-  }
-};
+const { MODEL_RECOMMENDATIONS } = require('./models');
 
 let mainWindow;
 
@@ -393,6 +256,9 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
 // Add new IPC handler for model recommendations
 ipcMain.handle('get-model-recommendations', async (event, { backend, memorySettings } = {}) => {
   try {
+    // Ensure backend has a default value
+    backend = backend || 'CPU';
+
     const [cpu, mem, gpu] = await Promise.all([
       si.cpu(),
       si.mem(),
@@ -400,7 +266,7 @@ ipcMain.handle('get-model-recommendations', async (event, { backend, memorySetti
     ]);
 
     const totalRamGB = Math.round(mem.total / (1024 * 1024 * 1024));
-    const hasGPU = gpu.controllers.some(controller => 
+    const hasGPU = gpu.controllers.some(controller =>
       controller.model && (
         controller.model.toLowerCase().includes('nvidia') ||
         controller.model.toLowerCase().includes('amd') ||
@@ -411,38 +277,97 @@ ipcMain.handle('get-model-recommendations', async (event, { backend, memorySetti
     // Get available GPU memory (if any)
     let gpuMemoryGB = 0;
     if (hasGPU) {
-      const gpuController = gpu.controllers.find(controller => 
+      const gpuController = gpu.controllers.find(controller =>
         controller.model && (
           controller.model.toLowerCase().includes('nvidia') ||
           controller.model.toLowerCase().includes('amd') ||
           controller.model.toLowerCase().includes('apple')
         )
       );
-      if (gpuController && gpuController.memoryTotal) {
-        gpuMemoryGB = Math.round(gpuController.memoryTotal / 1024); // Convert MB to GB
+      if (gpuController && gpuController.vram) {
+        gpuMemoryGB = Math.round(gpuController.vram / 1024); // Convert MB to GB
       }
     }
 
     // Calculate available memory based on allocation settings
-    const effectiveRamGB = memorySettings?.cpu ? Math.floor(totalRamGB * memorySettings.cpu) : totalRamGB;
-    const effectiveGpuGB = memorySettings?.gpu ? Math.floor(gpuMemoryGB * memorySettings.gpu) : gpuMemoryGB;
+    const effectiveRamGB = memorySettings?.cpu ? Math.floor(totalRamGB * memorySettings.cpu / 100) : totalRamGB;
+    const effectiveGpuGB = memorySettings?.gpu ? Math.floor(gpuMemoryGB * memorySettings.gpu / 100) : gpuMemoryGB;
 
     // Filter recommendations based on available memory and current backend
+    const isGPUBackend = backend && ['CUDA', 'METAL'].includes(backend);
     const recommendations = {};
+
     for (const [size, data] of Object.entries(MODEL_RECOMMENDATIONS)) {
-      const isGPUBackend = backend && ['CUDA', 'METAL'].includes(backend);
       const availableMemory = isGPUBackend ? effectiveGpuGB : effectiveRamGB;
       const memoryRequired = isGPUBackend ? Math.ceil(data.min_ram / 2) : data.min_ram; // GPU typically needs half the RAM
 
       if (availableMemory >= memoryRequired) {
+        // Create a copy of the data with processed models for the current backend
+        const processedData = { ...data, models: [] };
+
+        // Process each model to include only data relevant to the current backend
+        for (const model of data.models) {
+          const backendType = isGPUBackend ? 'gpu' : 'cpu';
+          const backendData = model[backendType];
+
+          if (backendData) {
+            // Create a processed model with only the backend-specific data
+            const processedModel = {
+              name: model.name,
+              params_b: model.params_b,
+              description: model.description,
+              ram_required: backendData.ram_required,
+              repo: backendData.repo
+            };
+
+            // For CPU backend, also include file information
+            if (backendType === 'cpu') {
+              processedModel.file = backendData.file;
+              processedModel.file_size_gb = backendData.file_size_gb;
+              processedModel.quant = backendData.quant;
+            }
+
+            processedData.models.push(processedModel);
+          }
+        }
+
         recommendations[size] = {
-          ...data,
+          ...processedData,
           suitable: true,
           reason: `Suitable for your hardware with current allocation (${availableMemory}GB ${isGPUBackend ? 'GPU' : 'RAM'} available, needs ${memoryRequired}GB)`
         };
       } else {
+        // Deep clone the data to prevent modification of unsuitable models
+        const clonedData = JSON.parse(JSON.stringify(data));
+
+        // Only include GPU or CPU models based on the backend
+        if (clonedData.models) {
+          clonedData.models = clonedData.models.map(model => {
+            const backendType = isGPUBackend ? 'gpu' : 'cpu';
+            const backendData = model[backendType];
+
+            if (!backendData) return null;
+
+            const processedModel = {
+              name: model.name,
+              params_b: model.params_b,
+              description: model.description,
+              ram_required: backendData.ram_required,
+              repo: backendData.repo
+            };
+
+            if (backendType === 'cpu') {
+              processedModel.file = backendData.file;
+              processedModel.file_size_gb = backendData.file_size_gb;
+              processedModel.quant = backendData.quant;
+            }
+
+            return processedModel;
+          }).filter(model => model !== null);
+        }
+
         recommendations[size] = {
-          ...data,
+          ...clonedData,
           suitable: false,
           reason: `Requires ${memoryRequired}GB ${isGPUBackend ? 'GPU memory' : 'RAM'} (you have ${availableMemory}GB allocated)`
         };
