@@ -19,6 +19,9 @@ function createWindow() {
     }
   });
 
+  // Remove the default menu bar (File, Edit, View buttons)
+  mainWindow.setMenu(null);
+
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
   // Open DevTools in development
@@ -82,9 +85,9 @@ ipcMain.handle('run-model', async (event, { backend, modelId, memorySettings }) 
   return new Promise((resolve) => {
     let serverProcess;
 
-    // Execute the setup.sh script with the backend, model ID, and memory settings as arguments
+    // Execute the setup_llamafile.sh script with the backend, model ID, and memory settings as arguments
     const setupProcess = exec(
-      `bash "${path.join(__dirname, 'setup.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
+      `bash "${path.join(__dirname, 'setup_llamafile.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
       (error, stdout, stderr) => {
         if (error) {
           console.error(`Error executing setup script: ${error}`);
@@ -98,9 +101,9 @@ ipcMain.handle('run-model', async (event, { backend, modelId, memorySettings }) 
         // After setup is complete, start the server
         mainWindow.webContents.send('setup-output', "Setup complete. Starting server...\n");
 
-        // Start the run.sh script to run the server with memory settings
+        // Start the run_llamafile.sh script to run the server with memory settings
         serverProcess = exec(
-          `bash "${path.join(__dirname, 'run.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
+          `bash "${path.join(__dirname, 'run_llamafile.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
           (error, stdout, stderr) => {
             if (error) {
               console.error(`Error executing run script: ${error}`);
