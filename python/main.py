@@ -8,11 +8,8 @@ import time
 from datetime import datetime
 import httpx
 import asyncio
-import sys
 
-# Add the parent directory to the Python path to import the shared module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from shared import database
+import database
 
 # Create FastAPI app
 app = FastAPI(title="LLM API Middleware")
@@ -117,7 +114,7 @@ async def proxy_endpoint(request: Request, path: str, api_key: Optional[str] = D
                 print(f"Error parsing request body: {e}")
     
     # Forward the request to the llama-cpp-python server
-    client = httpx.AsyncClient(base_url="http://localhost:8000")
+    client = httpx.AsyncClient(base_url="http://localhost:14238")
     
     # Forward the request
     try:
@@ -186,5 +183,5 @@ async def get_usage_stats(api_key: Optional[str] = Depends(validate_api_key)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=15876, reload=True)
 

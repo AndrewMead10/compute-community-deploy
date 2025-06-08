@@ -82,55 +82,84 @@ ipcMain.handle('run-model', async (event, { backend, modelId, memorySettings }) 
   return new Promise((resolve) => {
     let serverProcess;
 
-    // Execute the setup.sh script with the backend, model ID, and memory settings as arguments
-    const setupProcess = exec(
-      `bash "${path.join(__dirname, 'setup.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
+    // Step 1: Set up Python environment
+    mainWindow.webContents.send('setup-output', "Setting up Python environment...\n");
+    
+    const pythonSetupProcess = exec(
+      `bash "${path.join(__dirname, '..', 'scripts', 'setup_python.sh')}"`,
       (error, stdout, stderr) => {
         if (error) {
-          console.error(`Error executing setup script: ${error}`);
+          console.error(`Error setting up Python environment: ${error}`);
+          mainWindow.webContents.send('setup-error', `Error setting up Python: ${error.message}\n`);
           resolve({ success: false, error: error.message });
           return;
         }
 
-        console.log(`Setup script output: ${stdout}`);
-        if (stderr) console.error(`Setup script stderr: ${stderr}`);
+        console.log(`Python setup output: ${stdout}`);
+        if (stderr) console.error(`Python setup stderr: ${stderr}`);
 
-        // After setup is complete, start the server
-        mainWindow.webContents.send('setup-output', "Setup complete. Starting server...\n");
-
-        // Start the run.sh script to run the server with memory settings
-        serverProcess = exec(
-          `bash "${path.join(__dirname, 'run.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
+        // Step 2: Download llamafile and model
+        mainWindow.webContents.send('setup-output', "Downloading llamafile server and model...\n");
+        
+        const downloadProcess = exec(
+          `bash "${path.join(__dirname, '..', 'scripts', 'download.sh')}" "${modelId}"`,
           (error, stdout, stderr) => {
             if (error) {
-              console.error(`Error executing run script: ${error}`);
-              mainWindow.webContents.send('setup-error', `Error starting server: ${error.message}\n`);
+              console.error(`Error downloading files: ${error}`);
+              mainWindow.webContents.send('setup-error', `Error downloading: ${error.message}\n`);
               resolve({ success: false, error: error.message });
               return;
             }
+
+            console.log(`Download output: ${stdout}`);
+            if (stderr) console.error(`Download stderr: ${stderr}`);
+
+            // Step 3: Start the servers
+            mainWindow.webContents.send('setup-output', "Starting llamafile server and middleware...\n");
+
+            serverProcess = exec(
+              `bash "${path.join(__dirname, '..', 'scripts', 'run.sh')}" "${backend}" "${modelId}" "${memorySettings.cpu || 0}" "${memorySettings.gpu || 0}"`,
+              (error, stdout, stderr) => {
+                if (error) {
+                  console.error(`Error executing run script: ${error}`);
+                  mainWindow.webContents.send('setup-error', `Error starting servers: ${error.message}\n`);
+                  resolve({ success: false, error: error.message });
+                  return;
+                }
+              }
+            );
+
+            // Stream server output to the renderer process
+            serverProcess.stdout.on('data', (data) => {
+              mainWindow.webContents.send('setup-output', data.toString());
+            });
+
+            serverProcess.stderr.on('data', (data) => {
+              mainWindow.webContents.send('setup-error', data.toString());
+            });
+
+            // Resolve after starting the servers
+            resolve({ success: true, message: "Servers started successfully" });
           }
         );
 
-        // Stream server output to the renderer process
-        serverProcess.stdout.on('data', (data) => {
+        // Stream download output to the renderer process
+        downloadProcess.stdout.on('data', (data) => {
           mainWindow.webContents.send('setup-output', data.toString());
         });
 
-        serverProcess.stderr.on('data', (data) => {
+        downloadProcess.stderr.on('data', (data) => {
           mainWindow.webContents.send('setup-error', data.toString());
         });
-
-        // Resolve after starting the server
-        resolve({ success: true, message: "Server started successfully" });
       }
     );
 
-    // Stream setup output to the renderer process
-    setupProcess.stdout.on('data', (data) => {
+    // Stream Python setup output to the renderer process
+    pythonSetupProcess.stdout.on('data', (data) => {
       mainWindow.webContents.send('setup-output', data.toString());
     });
 
-    setupProcess.stderr.on('data', (data) => {
+    pythonSetupProcess.stderr.on('data', (data) => {
       mainWindow.webContents.send('setup-error', data.toString());
     });
 
