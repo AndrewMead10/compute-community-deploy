@@ -3,5 +3,8 @@ dist
 venv
 .venv
 __pycache__
-electron/models
 data
+test
+models
+bin
+llama.log
