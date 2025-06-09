@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld(
   deleteUser: (userId) => ipcRenderer.invoke('delete-user', userId),
   fetchHfModels: (repoId) => ipcRenderer.invoke('fetch-hf-models', repoId),
   getModelRecommendations: (options) => ipcRenderer.invoke('get-model-recommendations', options),
+  getRecentModels: (limit) => ipcRenderer.invoke('get-recent-models', limit),
+  deleteRecentModel: (modelId) => ipcRenderer.invoke('delete-recent-model', modelId),
   onSetupOutput: (callback) => {
     ipcRenderer.on('setup-output', (_, data) => callback(data));
   },

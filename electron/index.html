@@ -13,6 +13,7 @@
     <div class="tabs">
       <button class="tab-button active" data-tab="setup">Setup</button>
       <button class="tab-button" data-tab="users">Users & API Keys</button>
+      <button class="tab-button" data-tab="your-models">Your Models</button>
     </div>
 
     <div class="tab-content">
@@ -95,6 +96,13 @@
             <p>Loading system information...</p>
           </div>
 
+          <div class="recent-models" id="recent-models-section" style="display: none;">
+            <h2>Recent Models</h2>
+            <div id="recent-models-container">
+              Loading recent models...
+            </div>
+          </div>
+
           <div class="model-recommendations">
             <h2>Recommended Models</h2>
             <div id="model-recommendations-container">
@@ -113,6 +121,16 @@
 
         <div id="users-list" class="users-container">
           <p>Loading users...</p>
+        </div>
+      </div>
+
+      <!-- Your Models Tab -->
+      <div id="your-models" class="tab-pane">
+        <h1>Your Models</h1>
+        <p class="intro-text">View and manage all models you've used recently.</p>
+
+        <div id="all-models-list" class="models-container">
+          <p>Loading your models...</p>
         </div>
       </div>
     </div>

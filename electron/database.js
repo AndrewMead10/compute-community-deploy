@@ -57,6 +57,22 @@ function initDb() {
         )
       `, (err) => {
         if (err) reject(err);
+      });
+
+      // Create recent_models table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS recent_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_type TEXT NOT NULL, -- 'repo' or 'local'
+          repo_id TEXT, -- For HuggingFace models
+          gguf_file TEXT, -- For GGUF file name or local file path
+          backend TEXT NOT NULL, -- 'CPU', 'CUDA', 'METAL'
+          memory_settings TEXT, -- JSON string of memory settings
+          display_name TEXT NOT NULL, -- Human readable name
+          last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `, (err) => {
+        if (err) reject(err);
         else resolve();
       });
     });
@@ -213,6 +229,81 @@ function setSetting(key, value) {
   });
 }
 
+// Recent models functions
+function addRecentModel(modelData) {
+  return new Promise((resolve, reject) => {
+    const { modelType, repoId, ggufFile, backend, memorySettings, displayName } = modelData;
+    
+    // First check if this exact model configuration already exists
+    const checkQuery = `
+      SELECT id FROM recent_models 
+      WHERE model_type = ? AND repo_id = ? AND gguf_file = ? AND backend = ?
+    `;
+    
+    db.get(checkQuery, [modelType, repoId || null, ggufFile || null, backend], (err, existingRow) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      if (existingRow) {
+        // Update the last_used timestamp for existing model
+        db.run(
+          'UPDATE recent_models SET last_used = CURRENT_TIMESTAMP, memory_settings = ? WHERE id = ?',
+          [JSON.stringify(memorySettings), existingRow.id],
+          function(err) {
+            if (err) reject(err);
+            else resolve(existingRow.id);
+          }
+        );
+      } else {
+        // Insert new model
+        db.run(
+          `INSERT INTO recent_models (model_type, repo_id, gguf_file, backend, memory_settings, display_name) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [modelType, repoId || null, ggufFile || null, backend, JSON.stringify(memorySettings), displayName],
+          function(err) {
+            if (err) reject(err);
+            else resolve(this.lastID);
+          }
+        );
+      }
+    });
+  });
+}
+
+function getRecentModels(limit = null) {
+  return new Promise((resolve, reject) => {
+    const query = limit 
+      ? 'SELECT * FROM recent_models ORDER BY last_used DESC LIMIT ?'
+      : 'SELECT * FROM recent_models ORDER BY last_used DESC';
+    
+    const params = limit ? [limit] : [];
+    
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        // Parse memory_settings JSON
+        const models = rows.map(row => ({
+          ...row,
+          memory_settings: JSON.parse(row.memory_settings)
+        }));
+        resolve(models);
+      }
+    });
+  });
+}
+
+function deleteRecentModel(modelId) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM recent_models WHERE id = ?', [modelId], function(err) {
+      if (err) reject(err);
+      else resolve(this.changes > 0);
+    });
+  });
+}
+
 // Initialize the database
 initDb().catch(err => {
   console.error('Error initializing database:', err);
@@ -230,5 +321,8 @@ module.exports = {
   deleteUser,
   getUsageStats,
   getSetting,
-  setSetting
+  setSetting,
+  addRecentModel,
+  getRecentModels,
+  deleteRecentModel
 }; 

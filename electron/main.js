@@ -82,6 +82,45 @@ ipcMain.handle('run-model', async (event, { backend, modelId, memorySettings }) 
   return new Promise((resolve) => {
     let serverProcess;
 
+    // Save the model to recent models before starting
+    const saveRecentModel = async () => {
+      try {
+        let modelData;
+        
+        // Determine if this is a HuggingFace repo model or local file
+        if (modelId.includes('/') && !modelId.startsWith('/') && !modelId.includes('\\')) {
+          // This looks like a HuggingFace repo format (user/repo or user/repo:filename)
+          const [repoId, ggufFile] = modelId.includes(':') ? modelId.split(':') : [modelId, null];
+          modelData = {
+            modelType: 'repo',
+            repoId: repoId,
+            ggufFile: ggufFile,
+            backend: backend,
+            memorySettings: memorySettings,
+            displayName: ggufFile ? `${repoId}:${ggufFile}` : repoId
+          };
+        } else {
+          // This is a local file path
+          modelData = {
+            modelType: 'local',
+            repoId: null,
+            ggufFile: modelId, // Store the full path
+            backend: backend,
+            memorySettings: memorySettings,
+            displayName: modelId.split(/[/\\]/).pop() // Just the filename for display
+          };
+        }
+        
+        await db.addRecentModel(modelData);
+      } catch (error) {
+        console.error('Error saving recent model:', error);
+        // Don't fail the model run if we can't save to recent models
+      }
+    };
+
+    // Save recent model (don't wait for it)
+    saveRecentModel();
+
     // Step 1: Set up Python environment
     mainWindow.webContents.send('setup-output', "Setting up Python environment...\n");
     
@@ -280,6 +319,26 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
 
     req.end();
   });
+});
+
+// Recent models functions
+ipcMain.handle('get-recent-models', async (event, limit) => {
+  try {
+    return await db.getRecentModels(limit);
+  } catch (error) {
+    console.error('Error getting recent models:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('delete-recent-model', async (event, modelId) => {
+  try {
+    const result = await db.deleteRecentModel(modelId);
+    return { success: result };
+  } catch (error) {
+    console.error('Error deleting recent model:', error);
+    throw error;
+  }
 });
 
 // Add new IPC handler for model recommendations

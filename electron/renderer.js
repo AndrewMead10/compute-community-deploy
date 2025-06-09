@@ -60,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (tabId === 'users') {
                     tabElement.style.display = 'flex';
                     tabElement.style.flexDirection = 'column';
+                } else if (tabId === 'your-models') {
+                    tabElement.style.display = 'flex';
+                    tabElement.style.flexDirection = 'column';
                 }
             } else {
                 console.error('Tab element not found with ID:', tabId);
@@ -68,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Load data for the active tab
             if (tabId === 'users') {
                 loadUsersAndStats();
+            } else if (tabId === 'your-models') {
+                loadAllModels();
             }
         });
     });
@@ -77,6 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load users and stats
     loadUsersAndStats();
+
+    // Load recent models
+    loadRecentModels();
 
     // Setup run button
     const runButton = document.getElementById('run-button');
@@ -250,6 +258,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (systemMemoryInfo.ram === 0) {
             recommendationsContainer.innerHTML = '<p>Loading system information...</p>';
             return;
+        }
+
+        // Also load recent models when we have system memory info
+        if (systemMemoryInfo.ram > 0) {
+            loadRecentModels();
         }
 
         const backend = document.getElementById('backend').value;
@@ -766,4 +779,202 @@ async function deleteUser(userId) {
         console.error('Error deleting user:', error);
         alert(`Error deleting user: ${error.message}`);
     }
-} 
+}
+
+// Load and display recent models (top 3)
+async function loadRecentModels() {
+    try {
+        const recentModels = await window.api.getRecentModels(3);
+        const recentModelsContainer = document.getElementById('recent-models-container');
+        const recentModelsSection = document.getElementById('recent-models-section');
+
+        if (recentModels.length === 0) {
+            recentModelsSection.style.display = 'none';
+            return;
+        }
+
+        recentModelsSection.style.display = 'block';
+
+        const html = recentModels.map(model => {
+            const lastUsed = new Date(model.last_used).toLocaleDateString();
+            const modelTypeDisplay = model.model_type === 'repo' ? 'HuggingFace' : 'Local';
+            const memorySettings = model.memory_settings;
+            const memoryInfo = memorySettings.cpu 
+                ? `CPU: ${memorySettings.cpu}%` 
+                : `GPU: ${memorySettings.gpu}%`;
+
+            return `
+                <div class="recent-model-item" data-model-id="${model.id}">
+                    <div class="recent-model-header">
+                        <span class="recent-model-name">${model.display_name}</span>
+                        <span class="recent-model-backend">${model.backend}</span>
+                    </div>
+                    <div class="recent-model-details">
+                        ${modelTypeDisplay} • ${memoryInfo}
+                    </div>
+                    <div class="recent-model-date">Last used: ${lastUsed}</div>
+                    <div class="recent-model-actions">
+                        <button class="btn btn-use-model" onclick="useRecentModel(${model.id})">Use</button>
+                        <button class="btn btn-delete-model" onclick="deleteRecentModel(${model.id})">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        recentModelsContainer.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading recent models:', error);
+        document.getElementById('recent-models-container').innerHTML = '<p>Error loading recent models</p>';
+    }
+}
+
+// Load all models for the "Your Models" tab
+async function loadAllModels() {
+    try {
+        const allModels = await window.api.getRecentModels();
+        const allModelsContainer = document.getElementById('all-models-list');
+
+        if (allModels.length === 0) {
+            allModelsContainer.innerHTML = `
+                <div class="empty-state">
+                    <h3>No models used yet</h3>
+                    <p>Models you run will appear here for easy access later.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const html = allModels.map(model => {
+            const lastUsed = new Date(model.last_used).toLocaleString();
+            const modelTypeDisplay = model.model_type === 'repo' ? 'HuggingFace Repository' : 'Local File';
+            const memorySettings = model.memory_settings;
+
+            let detailsHtml = '';
+            if (model.model_type === 'repo') {
+                detailsHtml = `
+                    <p><strong>Repository:</strong> ${model.repo_id}</p>
+                    ${model.gguf_file ? `<p><strong>GGUF File:</strong> ${model.gguf_file}</p>` : ''}
+                `;
+            } else {
+                detailsHtml = `<p><strong>File Path:</strong> ${model.gguf_file}</p>`;
+            }
+
+            return `
+                <div class="model-history-item">
+                    <div class="model-history-header">
+                        <div class="model-history-info">
+                            <h3>${model.display_name}</h3>
+                            <div class="model-history-meta">
+                                <span class="model-meta-tag backend">${model.backend}</span>
+                                <span class="model-meta-tag type">${modelTypeDisplay}</span>
+                                <span class="model-meta-tag">CPU: ${memorySettings.cpu || 0}%</span>
+                                ${memorySettings.gpu ? `<span class="model-meta-tag">GPU: ${memorySettings.gpu}%</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="model-history-date">${lastUsed}</div>
+                    </div>
+                    <div class="model-history-details">
+                        ${detailsHtml}
+                    </div>
+                    <div class="model-history-actions">
+                        <button class="btn btn-use-model" onclick="useRecentModel(${model.id})">Use This Model</button>
+                        <button class="btn btn-delete-model" onclick="deleteRecentModel(${model.id})">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        allModelsContainer.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading all models:', error);
+        document.getElementById('all-models-list').innerHTML = '<p>Error loading models</p>';
+    }
+}
+
+// Use a recent model (fill the setup form and switch to setup tab)
+async function useRecentModel(modelId) {
+    try {
+        const recentModels = await window.api.getRecentModels();
+        const model = recentModels.find(m => m.id === modelId);
+        
+        if (!model) {
+            alert('Model not found');
+            return;
+        }
+
+        // Fill the setup form
+        document.getElementById('backend').value = model.backend;
+        
+        // Trigger backend change event to show/hide appropriate fields
+        document.getElementById('backend').dispatchEvent(new Event('change'));
+        
+        // Set memory settings
+        if (model.memory_settings.cpu) {
+            document.getElementById('cpu-memory').value = model.memory_settings.cpu;
+            document.getElementById('cpu-memory-value').textContent = `${model.memory_settings.cpu}%`;
+        }
+        if (model.memory_settings.gpu) {
+            document.getElementById('gpu-memory').value = model.memory_settings.gpu;
+            document.getElementById('gpu-memory-value').textContent = `${model.memory_settings.gpu}%`;
+        }
+
+        // Fill model-specific fields
+        if (model.model_type === 'repo') {
+            if (['CUDA', 'METAL'].includes(model.backend)) {
+                document.getElementById('gpu-repo-id').value = model.repo_id;
+            } else {
+                document.getElementById('cpu-repo-id').value = model.repo_id;
+                if (model.gguf_file) {
+                    // Fetch models and select the specific GGUF file
+                    await fetchModels();
+                    const modelSelect = document.getElementById('cpu-model-select');
+                    const options = Array.from(modelSelect.options);
+                    const targetOption = options.find(option => option.text.includes(model.gguf_file));
+                    if (targetOption) {
+                        targetOption.selected = true;
+                    }
+                }
+            }
+        } else {
+            // Local file
+            document.getElementById('local-model-path').value = model.gguf_file;
+        }
+
+        // Switch to setup tab
+        const setupTab = document.querySelector('[data-tab="setup"]');
+        setupTab.click();
+
+        // Show success message
+        const outputText = document.getElementById('output-text');
+        outputText.textContent = `Model "${model.display_name}" loaded into setup form.\n`;
+        
+    } catch (error) {
+        console.error('Error using recent model:', error);
+        alert('Error loading model: ' + error.message);
+    }
+}
+
+// Delete a recent model
+async function deleteRecentModel(modelId) {
+    if (!confirm('Are you sure you want to delete this model from your history?')) {
+        return;
+    }
+
+    try {
+        const result = await window.api.deleteRecentModel(modelId);
+        if (result.success) {
+            // Reload recent models and all models
+            loadRecentModels();
+            loadAllModels();
+        } else {
+            alert('Failed to delete model');
+        }
+    } catch (error) {
+        console.error('Error deleting recent model:', error);
+        alert('Error deleting model: ' + error.message);
+    }
+}
+
+// Make functions available globally for onclick handlers
+window.useRecentModel = useRecentModel;
+window.deleteRecentModel = deleteRecentModel; 
