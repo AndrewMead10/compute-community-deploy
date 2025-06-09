@@ -1,12 +1,14 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const si = require('systeminformation');
 const db = require('./database');
 const https = require('https');
 const { MODEL_RECOMMENDATIONS } = require('./models');
+const { P2PBackend } = require('./p2p-backend');
 
 let mainWindow;
+let p2pBackend = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -414,5 +416,104 @@ ipcMain.handle('get-model-recommendations', async (event, { backend, memorySetti
   } catch (error) {
     console.error('Error getting model recommendations:', error);
     return { error: 'Failed to get model recommendations' };
+  }
+});
+
+// P2P Backend IPC handlers
+ipcMain.handle('start-p2p-backend', async (event, options = {}) => {
+  try {
+    if (p2pBackend && p2pBackend.isRunning) {
+      // Return current status instead of throwing error
+      const status = p2pBackend.getStatus();
+      return {
+        success: true,
+        alreadyRunning: true,
+        peerId: status.peerId,
+        multiaddrs: status.multiaddrs,
+        shareableUrl: p2pBackend.generateShareableUrl(status.peerId),
+        connections: status.connections
+      };
+    }
+
+    // Create new P2P backend instance with default settings
+    p2pBackend = new P2PBackend({
+      onPeerConnect: (peerId) => {
+        mainWindow.webContents.send('p2p-peer-connected', peerId);
+      },
+      onPeerDisconnect: (peerId) => {
+        mainWindow.webContents.send('p2p-peer-disconnected', peerId);
+      },
+      onError: (error) => {
+        console.error('P2P Backend error:', error);
+        mainWindow.webContents.send('p2p-error', error.toString());
+      },
+      onStatusUpdate: (status) => {
+        mainWindow.webContents.send('p2p-status-update', status);
+      }
+    });
+
+    const result = await p2pBackend.start();
+    
+    // Copy shareable URL to clipboard
+    if (result.shareableUrl) {
+      clipboard.writeText(result.shareableUrl);
+    }
+
+    return {
+      success: true,
+      ...result
+    };
+  } catch (error) {
+    console.error('Error starting P2P backend:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('stop-p2p-backend', async () => {
+  try {
+    if (p2pBackend) {
+      await p2pBackend.stop();
+      p2pBackend = null;
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error stopping P2P backend:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('get-p2p-status', async () => {
+  try {
+    if (!p2pBackend) {
+      return {
+        isRunning: false,
+        connections: 0
+      };
+    }
+    return p2pBackend.getStatus();
+  } catch (error) {
+    console.error('Error getting P2P status:', error);
+    return {
+      isRunning: false,
+      connections: 0,
+      error: error.message
+    };
+  }
+});
+
+// Handle app quit to stop P2P backend
+app.on('before-quit', async () => {
+  if (p2pBackend) {
+    try {
+      await p2pBackend.stop();
+    } catch (error) {
+      console.error('Error stopping P2P backend on quit:', error);
+    }
   }
 }); 

@@ -87,6 +87,26 @@
             <h3>Output:</h3>
             <pre id="output-text"></pre>
           </div>
+
+          <!-- P2P Status Panel -->
+          <div id="p2p-status-panel" class="p2p-status-panel" style="display: none;">
+            <h3>P2P Sharing Status</h3>
+            <div class="status-item">
+              <strong>Status:</strong> <span id="p2p-status-text">Stopped</span>
+            </div>
+            <div id="p2p-info" style="display: none;">
+              <div class="status-item">
+                <strong>Shareable URL:</strong> 
+                <div class="shareable-url">
+                  <input type="text" id="shareable-url" class="form-control monospace" readonly>
+                  <button id="copy-url" class="btn">Copy</button>
+                </div>
+              </div>
+              <div class="status-item">
+                <strong>Active Connections:</strong> <span id="connection-count">0</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="sidebar">

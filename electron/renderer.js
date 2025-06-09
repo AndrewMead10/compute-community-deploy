@@ -155,6 +155,34 @@ document.addEventListener('DOMContentLoaded', () => {
         outputText.scrollTop = outputText.scrollHeight;
     });
 
+    // Setup P2P event listeners
+    window.api.onP2PPeerConnected((peerId) => {
+        const outputText = document.getElementById('output-text');
+        outputText.textContent += `Peer connected: ${peerId}\n`;
+        updateConnectionCount();
+    });
+
+    window.api.onP2PPeerDisconnected((peerId) => {
+        const outputText = document.getElementById('output-text');
+        outputText.textContent += `Peer disconnected: ${peerId}\n`;
+        updateConnectionCount();
+    });
+
+    window.api.onP2PError((error) => {
+        const outputText = document.getElementById('output-text');
+        outputText.textContent += `P2P Error: ${error}\n`;
+    });
+
+    window.api.onP2PStatusUpdate((status) => {
+        updateP2PStatus(status);
+    });
+
+    // Setup copy URL button
+    const copyUrlButton = document.getElementById('copy-url');
+    if (copyUrlButton) {
+        copyUrlButton.addEventListener('click', copyShareableUrl);
+    }
+
     // Function to format memory display
     const formatMemoryDisplay = (totalMemoryGB, percentage) => {
         const allocatedGB = (totalMemoryGB * (percentage / 100)).toFixed(1);
@@ -528,6 +556,11 @@ async function runModel() {
 
         if (result.success) {
             outputText.textContent += '\nSetup completed successfully!\n';
+            
+            // Automatically start P2P sharing
+            outputText.textContent += '\nStarting P2P sharing...\n';
+            await startP2PAutomatically();
+            
         } else {
             outputText.textContent += `\nSetup failed: ${result.error}\n`;
         }
@@ -537,6 +570,52 @@ async function runModel() {
     } finally {
         runButton.disabled = false;
         runButton.textContent = 'Run Model';
+    }
+}
+
+// Automatically start P2P sharing
+async function startP2PAutomatically() {
+    try {
+        const outputText = document.getElementById('output-text');
+        const p2pStatusPanel = document.getElementById('p2p-status-panel');
+        
+        // First check if P2P is already running
+        const currentStatus = await window.api.getP2PStatus();
+        
+        if (currentStatus.isRunning) {
+            outputText.textContent += `P2P sharing is already running!\n`;
+            outputText.textContent += `Active connections: ${currentStatus.connections}\n`;
+            
+            // Show P2P status panel
+            p2pStatusPanel.style.display = 'block';
+            updateP2PStatus(currentStatus);
+            return;
+        }
+        
+        const result = await window.api.startP2PBackend();
+
+        if (result.success) {
+            if (result.alreadyRunning) {
+                outputText.textContent += `P2P sharing was already running!\n`;
+                outputText.textContent += `Shareable URL: ${result.shareableUrl}\n`;
+                outputText.textContent += `Active connections: ${result.connections}\n`;
+            } else {
+                outputText.textContent += `P2P sharing started successfully!\n`;
+                outputText.textContent += `Shareable URL: ${result.shareableUrl}\n`;
+                outputText.textContent += `Shareable URL copied to clipboard!\n`;
+            }
+            
+            // Show P2P status panel
+            p2pStatusPanel.style.display = 'block';
+            updateP2PInfo(result);
+            
+        } else {
+            outputText.textContent += `Failed to start P2P sharing: ${result.error}\n`;
+        }
+    } catch (error) {
+        console.error('Error starting P2P automatically:', error);
+        const outputText = document.getElementById('output-text');
+        outputText.textContent += `Error starting P2P sharing: ${error.message}\n`;
     }
 }
 
@@ -766,4 +845,59 @@ async function deleteUser(userId) {
         console.error('Error deleting user:', error);
         alert(`Error deleting user: ${error.message}`);
     }
+}
+
+// P2P Status Management Functions
+function updateP2PInfo(info) {
+    const p2pInfoDiv = document.getElementById('p2p-info');
+    const shareableUrlInput = document.getElementById('shareable-url');
+    
+    if (info) {
+        p2pInfoDiv.style.display = 'block';
+        
+        if (info.shareableUrl) {
+            shareableUrlInput.value = info.shareableUrl;
+        } else {
+            // Generate a simple shareable URL
+            shareableUrlInput.value = `p2p://${info.peerId}`;
+        }
+    } else {
+        p2pInfoDiv.style.display = 'none';
+    }
+}
+
+function updateP2PStatus(status) {
+    const statusText = document.getElementById('p2p-status-text');
+    const connectionCount = document.getElementById('connection-count');
+    
+    statusText.textContent = status.isRunning ? 'Running' : 'Stopped';
+    statusText.style.color = status.isRunning ? '#28a745' : '#6c757d';
+    
+    if (connectionCount) {
+        connectionCount.textContent = status.connections || 0;
+    }
+}
+
+function updateConnectionCount() {
+    // Get current status and update connection count
+    window.api.getP2PStatus().then(status => {
+        const connectionCount = document.getElementById('connection-count');
+        if (connectionCount) {
+            connectionCount.textContent = status.connections || 0;
+        }
+    });
+}
+
+function copyShareableUrl() {
+    const shareableUrlInput = document.getElementById('shareable-url');
+    const copyButton = document.getElementById('copy-url');
+    
+    shareableUrlInput.select();
+    document.execCommand('copy');
+    
+    const originalText = copyButton.textContent;
+    copyButton.textContent = 'Copied!';
+    setTimeout(() => {
+        copyButton.textContent = originalText;
+    }, 2000);
 } 
