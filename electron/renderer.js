@@ -459,6 +459,12 @@ async function fetchModels() {
                 cpuModelSelect.appendChild(option);
             });
 
+            // Auto-select the recommended model if available
+            if (result.selectedModel) {
+                cpuModelSelect.value = result.selectedModel;
+                outputText.textContent += `Auto-selected model: ${result.selectedModel.split('/').pop()}\n`;
+            }
+
             // Enable the select
             cpuModelSelect.disabled = false;
 

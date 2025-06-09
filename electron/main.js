@@ -253,6 +253,15 @@ ipcMain.handle('get-usage-stats', async () => {
 
 ipcMain.handle('fetch-hf-models', async (event, repoId) => {
   return new Promise((resolve, reject) => {
+    // Parse HuggingFace URL if provided
+    if (repoId && (repoId.startsWith('https://huggingface.co/') || repoId.startsWith('http://huggingface.co/'))) {
+      // Extract the repository ID from the URL
+      const urlParts = repoId.replace(/^https?:\/\/huggingface\.co\//, '').split('/');
+      if (urlParts.length >= 2) {
+        repoId = `${urlParts[0]}/${urlParts[1]}`;
+      }
+    }
+
     if (!repoId || !repoId.includes('/')) {
       resolve({ success: false, error: 'Invalid repository ID' });
       return;
@@ -295,9 +304,26 @@ ipcMain.handle('fetch-hf-models', async (event, repoId) => {
             lastModified: file.lastCommit
           }));
 
+          // Auto-select logic: prefer Q4_K_M, otherwise select the first model
+          let selectedModel = null;
+          if (ggufModels.length > 0) {
+            // Try to find Q4_K_M model first
+            const q4kmModel = ggufModels.find(model => 
+              model.name.toLowerCase().includes('q4_k_m')
+            );
+            
+            if (q4kmModel) {
+              selectedModel = q4kmModel.name;
+            } else {
+              // If no Q4_K_M model found, select the first one
+              selectedModel = ggufModels[0].name;
+            }
+          }
+
           resolve({
             success: true,
-            models: ggufModels
+            models: ggufModels,
+            selectedModel: selectedModel
           });
         } catch (error) {
           console.error('Error parsing HF API response:', error);
